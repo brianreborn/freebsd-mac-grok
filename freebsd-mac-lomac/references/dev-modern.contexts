@@ -1,0 +1,33 @@
+#
+# Privileged /dev nodes: original LOMAC PLM used mdctl, pci, kmem, mem, io,
+# agp.* (LOWNOOPEN / high). Names have moved. This file is applied first so
+# setfsmac(8) first-match wins over the official /dev(/.*)? equal rule.
+#
+# Still valid on FreeBSD 15:
+#   /dev/mem /dev/kmem /dev/io /dev/pci /dev/mdctl
+# Gone or rare:
+#   /dev/agp*  (AGP) → DRM master /dev/dri/card*
+# New (keep usable for Xorg/seat, not high):
+#   /dev/dri/renderD*  render nodes (unprivileged GL)
+#   /dev/input/event*  evdev(4) (xf86-input-evdev / libinput)
+#   /dev/kbdmux* /dev/sysmouse /dev/psm*  vt(4) / moused(8)
+#   /dev/hidraw* /dev/uhid* /dev/ums* /dev/ukbd*  hid(4)
+#
+
+# --- PLM privileged set (unchanged names) ---
+/dev/mdctl				lomac/high
+/dev/pci				lomac/high
+/dev/kmem				lomac/high
+/dev/mem				lomac/high
+/dev/io					lomac/high
+/dev/agp.*				lomac/high
+
+# --- modern equivalents of those privileged nodes ---
+/dev/cpuctl				lomac/high
+/dev/zfs				lomac/high
+/dev/pci.*				lomac/high
+
+# DRM: cardN is the master (old agp); renderD* stays equal (see x11-xorg).
+/dev/dri/card.*				lomac/high
+/dev/drm				lomac/high
+/dev/drm0				lomac/high

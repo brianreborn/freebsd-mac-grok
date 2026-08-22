@@ -1,0 +1,96 @@
+.Dd August 22, 2026
+.Dt MAC_GROK 8
+.Os
+.Sh NAME
+.Nm mac_grok
+.Nd orchestrate
+.Xr mac_lomac_grok 8
+and
+.Xr mac_generic_grok 8
+with ZFS snapshots
+.Sh SYNOPSIS
+.Nm
+.Ar command
+.Sh DESCRIPTION
+.Nm
+is the suite
+.Xr rc.subr 8
+script.
+It is the only component that takes
+.Xr zfs 8
+snapshots
+.Pq filesystems and zvols
+and optional
+.Xr zpool-checkpoint 8 .
+Children are invoked with
+.Ev MAC_LOMAC_GROK_SKIP_SNAPSHOT Ns =1 .
+.Pp
+.Va mac_grok_enable
+defaults to
+.Dq NO .
+Use
+.Xr service 8
+.Dq one Ns Ar command .
+.Sh COMMANDS
+.Bl -tag -width snapshot_after
+.It Cm install
+Install this script and, if present in the result directory, the
+child packages.
+.It Cm snapshot
+.Em Before
+any policy mutation:
+.Cm zfs snapshot Fl r
+.Ar pool Ns @mac_grok-pre- Ns Ar utc
+covering all descendant filesystems and volumes.
+Checkpoint only if
+.Ev CHECKPOINT Ns =1 .
+.It Cm snapshot_after
+.Em After
+.Cm stage :
+the same
+.Fl r
+snapshot with a
+.Dq post
+tag.
+No second checkpoint.
+.It Cm stage
+Child
+.Cm stage
+commands.
+.It Cm update
+Child
+.Cm update
+.Pq Xr login.conf 5 , POLICIES .
+.It Cm start , Cm stop , Cm status
+Delegate to children.
+.It Cm test Ns Ar command
+Dry-run
+.Pq Cm testsnapshot , Cm teststage , Cm testupdate , Cm testuninstall , Cm teststart .
+No modifications.
+.It Cm uninstall
+Child
+.Cm uninstall
+then remove
+.Nm
+files and manuals.
+Does not destroy ZFS snapshots; names remain in
+.Pa /var/db/mac_grok/zfs.snaps .
+.El
+.Sh FILES
+.Pa /usr/local/etc/rc.d/mac_grok ,
+.Pa /var/db/mac_grok/zfs.snaps
+.Sh SEE ALSO
+.Xr mac_grok 4 ,
+.Xr mac_grok 7 ,
+.Xr mac_lomac_grok 8 ,
+.Xr mac_generic_grok 8 ,
+.Xr zfs 8 ,
+.Xr zpool-checkpoint 8
+.Sh BUGS
+.Xr zpool-checkpoint 8
+rewind discards later transactions and the checkpoint.
+See the suite
+.Pa README
+section
+.Dq Known issues
+and the child package READMEs.

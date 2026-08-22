@@ -1,0 +1,67 @@
+.Dd August 22, 2026
+.Dt MAC_GENERIC_GROK 4
+.Os
+.Sh NAME
+.Nm mac_generic_grok
+.Nd orthogonal
+.Xr mac 4
+modules as loaded by
+.Xr mac_generic_grok 8
+.Sh DESCRIPTION
+This page is the configured kernel view.
+Implementations are the stock modules in
+.Pa /boot/kernel
+.Pq options MAC in GENERIC .
+.Pp
+Typical set with LOMAC:
+.Xr mac_seeotheruids 4
+with
+.Va security.mac.seeotheruids.specificgid
+set to 0
+.Pq wheel
+so operators still see the system.
+.Pp
+Do not load
+.Xr mac_biba 4
+or
+.Xr mac_mls 4
+next to
+.Xr mac_lomac 4
+unless a second information-flow proof is required.
+.Pp
+.Xr mac_ifoff 4
+defaults in this package leave
+.Va security.mac.ifoff.other_enabled
+at 0, which can cut remote access.
+.Sh SEE ALSO
+.Xr mac 4 ,
+.Xr mac_seeotheruids 4 ,
+.Xr mac_generic_grok 8 ,
+.Xr mac_generic_grok 5
+.Sh BUGS
+.Va security.mac.seeotheruids.specificgid
+is a single GID
+.Pq Handbook; not a list .
+.Va primarygroup_enabled
+must not be combined with
+.Va specificgid_enabled .
+.Xr mac_ifoff 4
+.Va other_enabled Ns =0
+cuts non-loopback traffic.
+.Xr mac_bsdextended 4
+starts allow-all until
+.Xr ugidfw 8
+rules exist; new users need a module reload.
+Labeled
+.Xr mac_partition 4
+historically failed
+.Xr kldunload 8
+with
+.Er ENOMEM
+while labels remained.
+See the package
+.Pa README
+section
+.Dq Known issues
+for Handbook ch.19 troubleshooting and mailing-list/PR notes
+.Pq kern/72263, bin/79714, Forums 76153 .

@@ -1,0 +1,827 @@
+#!/bin/sh
+#
+# PROVIDE: mac_lomac_grok
+# REQUIRE: FILESYSTEMS
+# KEYWORD: shutdown
+#
+# mac_lomac(4) staging/control for a Grok-generated policy package.
+# Does not relabel or enforce on `start`. See extra commands.
+#
+# Default: mac_lomac_grok_enable="NO"  (no boot action)
+# When YES: start only kldload(8) with security.mac.lomac.enabled=0
+#
+# Extra (use service(8) one* if enable=NO):
+#   install      install files under /usr/local
+#   snapshot     zfs snapshot -r (filesystems + zvols); optional zpool checkpoint
+#   stage        first-time: PREINSTALL snapshot + apply config
+#   update|reload  later: refresh login.conf(5)/groups/contexts (cap_mkdb); no setfsmac
+#   label        setfmac(8) probe + setfsmac(8)
+#   checklabels  read-only sentinels vs spec
+#   enforce      sysctl security.mac.lomac.enabled=1
+#   unenforce    enabled=0
+#   uninstall    restore pre-install *behavior* (module off, configs/classes restored)
+#   test*        dry-run of the matching command (diff what would change)
+#
+# Config snapshot (taken once, never overwritten):
+#   /var/db/mac_lomac_grok/PREINSTALL/
+# ZFS names recorded in:
+#   /var/db/mac_lomac_grok/zfs.snaps
+#
+# Manual: rc(8), rc.subr(8), service(8), mac_lomac(4), setfsmac(8), sysctl(8)
+
+# shellcheck disable=SC1091
+. /etc/rc.subr
+
+name="mac_lomac_grok"
+rcvar="${name}_enable"
+desc="mac_lomac(4) policy package (Grok); stage/label/check/enforce/uninstall"
+
+extra_commands="install snapshot stage update reload label checklabels enforce unenforce uninstall testsnapshot teststage testupdate testlabel teststart testenforce testunenforce testuninstall"
+
+load_rc_config $name
+
+: "${mac_lomac_grok_enable:=NO}"
+: "${mac_lomac_grok_dir:=/usr/local/etc/mac_lomac_grok}"
+: "${mac_lomac_grok_db:=/var/db/mac_lomac_grok}"
+: "${mac_lomac_grok_contexts:=/etc/lomac.contexts}"
+: "${mac_lomac_grok_src:=}"	# set by install from the result directory
+: "${mac_lomac_grok_checkpoint:=NO}"	# YES → zpool checkpoint(8) (one per pool)
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+install_cmd="${name}_install"
+snapshot_cmd="${name}_snapshot"
+stage_cmd="${name}_stage"
+update_cmd="${name}_update"
+reload_cmd="${name}_update"
+label_cmd="${name}_label"
+checklabels_cmd="${name}_checklabels"
+enforce_cmd="${name}_enforce"
+unenforce_cmd="${name}_unenforce"
+uninstall_cmd="${name}_uninstall"
+testsnapshot_cmd="${name}_testsnapshot"
+teststage_cmd="${name}_teststage"
+testupdate_cmd="${name}_testupdate"
+testlabel_cmd="${name}_testlabel"
+teststart_cmd="${name}_teststart"
+testenforce_cmd="${name}_testenforce"
+testunenforce_cmd="${name}_testunenforce"
+testuninstall_cmd="${name}_testuninstall"
+
+_test=0
+PRE="${mac_lomac_grok_db}/PREINSTALL"
+MARK_B="BEGIN mac_lomac_grok"
+MARK_E="END mac_lomac_grok"
+
+_err() { echo "${name}: $*" >&2; }
+_info() { echo "${name}: $*"; }
+_would() { echo "WOULD: $*"; }
+_diff_u() {
+	if [ -f "$1" ]; then
+		if cmp -s "$1" "$2" 2>/dev/null; then
+			echo "unchanged: $1"
+		else
+			echo "--- would change $1 ---"
+			diff -u "$1" "$2" || true
+		fi
+	else
+		echo "WOULD create $1:"
+		cat "$2"
+	fi
+}
+
+_have_kld() { kldstat -q -m mac_lomac; }
+
+_sysctl_enabled() {
+	sysctl -n security.mac.lomac.enabled 2>/dev/null || echo ""
+}
+
+_set_enabled() {
+	if ! _have_kld; then
+		_err "mac_lomac(4) not loaded"
+		return 1
+	fi
+	sysctl security.mac.lomac.enabled="$1"
+}
+
+# ---------- ZFS filesystem/zvol snapshots + pool checkpoint ----------
+_root_dataset() {
+	mount -p | awk '$2=="/" {print $1; exit}'
+}
+
+_root_pool() {
+	ds=$(_root_dataset)
+	echo "${ds%%/*}"
+}
+
+mac_lomac_grok_snapshot() {
+	if ! command -v zfs >/dev/null 2>&1; then
+		_err "zfs(8) not found — skip"
+		return 1
+	fi
+	pool=$(_root_pool)
+	if [ -z "$pool" ]; then
+		_err "could not determine root pool"
+		return 1
+	fi
+	stamp=$(date -u +%Y%m%dT%H%M%SZ)
+	tag="mac_lomac_grok-pre-${stamp}"
+	mkdir -p "${mac_lomac_grok_db}"
+	log="${mac_lomac_grok_db}/zfs.snaps"
+
+	if [ "$_test" = 1 ]; then
+		_would "zfs snapshot -r ${pool}@${tag}"
+		echo "--- datasets that would be snapshotted ---"
+		zfs list -H -o name -t filesystem,volume -r "$pool" 2>/dev/null || true
+		if [ "${mac_lomac_grok_checkpoint}" = "YES" ] || [ "${CHECKPOINT:-0}" = 1 ]; then
+			_would "zpool checkpoint $pool"
+		else
+			echo "no checkpoint (CHECKPOINT=1 to include)"
+		fi
+		return 0
+	fi
+	_info "zfs snapshot -r ${pool}@${tag}  (all filesystems and zvols under the pool)"
+	if ! zfs snapshot -r "${pool}@${tag}"; then
+		_err "zfs snapshot -r failed"
+		return 1
+	fi
+	echo "zfs:${pool}@${tag}" >> "$log"
+
+	do_ckpt=0
+	[ "${mac_lomac_grok_checkpoint}" = "YES" ] && do_ckpt=1
+	[ "${CHECKPOINT:-0}" = 1 ] && do_ckpt=1
+	if [ "$do_ckpt" = 1 ]; then
+		ckpt=$(zpool get -H -o value checkpoint "$pool" 2>/dev/null || echo none)
+		if [ "$ckpt" != "none" ] && [ -n "$ckpt" ] && [ "$ckpt" != "-" ]; then
+			_err "pool $pool already has a checkpoint ($ckpt); not replacing it"
+		else
+			_info "zpool checkpoint $pool  (rewind is export/import; see zpool-checkpoint(8))"
+			zpool checkpoint "$pool"
+			echo "checkpoint:${pool}" >> "$log"
+		fi
+	else
+		_info "no zpool checkpoint (set CHECKPOINT=1 or mac_lomac_grok_checkpoint=YES to take one)"
+	fi
+
+	_info "recorded in $log"
+	_info "dataset rollback: zfs rollback -r ${pool}@${tag}"
+	_info "pool rewind: zpool-checkpoint(8) (discards ALL later txgs); only if a checkpoint was taken"
+}
+
+# ---------- config file snapshot (once) ----------
+_config_snapshot() {
+	if [ -f "${PRE}/COMPLETE" ]; then
+		_info "PREINSTALL snapshot already complete (kept)"
+		return 0
+	fi
+	if [ "$_test" = 1 ]; then
+		_would "create PREINSTALL $PRE from current /boot/loader.conf /etc/login.conf /etc/sysctl.conf /etc/mac.conf /etc/rc.conf master.passwd classes"
+		return 0
+	fi
+	mkdir -p "$PRE"
+	for f in /boot/loader.conf /etc/login.conf /etc/login.conf.db \
+		/etc/sysctl.conf /etc/mac.conf /etc/rc.conf /etc/rc.conf.local \
+		"${mac_lomac_grok_contexts}"; do
+		if [ -f "$f" ]; then
+			cp -p "$f" "$PRE/$(echo "$f" | tr / _)"
+		fi
+	done
+	awk -F: '{print $1":"$5}' /etc/master.passwd > "${PRE}/user.classes"
+	pw groupshow -a 2>/dev/null | awk -F: '{print $1":"$3":"$4}' > "${PRE}/groups" || true
+	kldstat > "${PRE}/kldstat" 2>/dev/null || true
+	sysctl security.mac 2>/dev/null > "${PRE}/sysctl.mac" || true
+	date -u +%Y-%m-%dT%H:%M:%SZ > "${PRE}/COMPLETE"
+	_info "wrote PREINSTALL snapshot $PRE"
+}
+
+_restore_file() {
+	# $1 = original path
+	b="$PRE/$(echo "$1" | tr / _)"
+	if [ "$_test" = 1 ]; then
+		if [ -f "$b" ]; then
+			_diff_u "$1" "$b"
+		elif [ -f "$1" ]; then
+			_would "rm $1 (did not exist pre-install)"
+		else
+			echo "unchanged: $1 (absent)"
+		fi
+		return 0
+	fi
+	if [ -f "$b" ]; then
+		cp -p "$b" "$1"
+		_info "restored $1"
+		return 0
+	fi
+	# We created it — remove
+	if [ -f "$1" ]; then
+		rm -f "$1"
+		_info "removed $1 (did not exist pre-install)"
+	fi
+}
+
+_strip_marks() {
+	# If snapshot missing, still drop our stanzas.
+	f=$1
+	[ -f "$f" ] || return 0
+	awk -v b="$MARK_B" -v e="$MARK_E" '
+		index($0, b) { skip=1; next }
+		index($0, e) { skip=0; next }
+		!skip { print }
+	' "$f" > "${f}.mac_lomac_grok.tmp" && mv "${f}.mac_lomac_grok.tmp" "$f"
+}
+
+# ---------- start/stop/status ----------
+mac_lomac_grok_start() {
+	if [ "$_test" = 1 ]; then
+		if _have_kld; then
+			echo "unchanged: mac_lomac(4) already loaded"
+		else
+			_would "kldload mac_lomac"
+		fi
+		en=$(_sysctl_enabled)
+		[ "$en" = 1 ] && _would "sysctl security.mac.lomac.enabled=0 (now 1)"
+		_would "cap_mkdb /etc/login.conf and sync pw classes (see testupdate for diffs)"
+		return 0
+	fi
+	if _have_kld; then
+		_info "mac_lomac(4) already loaded"
+	else
+		kldload mac_lomac || return 1
+		_info "kldload mac_lomac(4)"
+	fi
+	# Never auto-enforce.
+	_set_enabled 0 || true
+	sysctl security.mac.lomac.ptys_equal=1 >/dev/null 2>&1 || true
+	# New group members / login.conf(5) edits since last boot.
+	if [ -f /etc/login.conf ]; then
+		cap_mkdb /etc/login.conf
+	fi
+	_sync_pw_classes 2>/dev/null || true
+}
+
+mac_lomac_grok_stop() {
+	_set_enabled 0 2>/dev/null || true
+	if _have_kld; then
+		kldunload mac_lomac 2>/dev/null || _err "kldunload mac_lomac failed (module busy); left loaded, enabled=0"
+	fi
+}
+
+mac_lomac_grok_status() {
+	if _have_kld; then
+		echo "mac_lomac(4): loaded"
+	else
+		echo "mac_lomac(4): not loaded"
+	fi
+	en=$(_sysctl_enabled)
+	[ -n "$en" ] && echo "security.mac.lomac.enabled=$en"
+	[ -f "${PRE}/COMPLETE" ] && echo "PREINSTALL snapshot: $PRE"
+	return 0
+}
+
+# ---------- install (copy package into /usr/local) ----------
+mac_lomac_grok_install() {
+	src=${mac_lomac_grok_src:-}
+	if [ -z "$src" ]; then
+		# When invoked from the result directory copy of this script:
+		src=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+		case $src in
+		/usr/local/etc/rc.d)
+			_err "set mac_lomac_grok_src to the result directory, or run the copy in that directory"
+			return 1
+			;;
+		esac
+	fi
+	mkdir -p "${mac_lomac_grok_dir}" /usr/local/etc/rc.d "${mac_lomac_grok_db}"
+	install -m 0755 "$0" /usr/local/etc/rc.d/mac_lomac_grok
+	for f in lomac-policy.contexts lomac-overlay.contexts x11-xorg.contexts dev-modern.contexts POLICY README mac_lomac_grok.conf; do
+		if [ -f "${src}/$f" ]; then
+			install -m 0644 "${src}/$f" "${mac_lomac_grok_dir}/$f"
+		fi
+	done
+	if [ ! -f /usr/local/etc/mac_lomac_grok.conf ] && [ -f "${mac_lomac_grok_dir}/mac_lomac_grok.conf" ]; then
+		install -m 0644 "${mac_lomac_grok_dir}/mac_lomac_grok.conf" /usr/local/etc/mac_lomac_grok.conf
+	fi
+	_install_mans "$src"
+	printf '%s\n' /usr/local/etc/rc.d/mac_lomac_grok \
+		"${mac_lomac_grok_dir}" \
+		/usr/local/etc/mac_lomac_grok.conf \
+		> "${mac_lomac_grok_db}/plist"
+	_info "installed under /usr/local; man: mac_lomac_grok(4,5,7,8)"
+	_info "next: service ${name} onestage"
+}
+
+_install_mans() {
+	s=$1
+	mandir=""
+	[ -d "$s/man" ] && mandir=$s/man
+	[ -z "$mandir" ] && [ -d "$s/../man" ] && mandir=$s/../man
+	[ -n "$mandir" ] || return 0
+	for sec in 4 5 7 8; do
+		[ -d "$mandir/man$sec" ] || continue
+		mkdir -p "/usr/local/share/man/man$sec"
+		for f in "$mandir/man$sec"/*; do
+			[ -f "$f" ] || continue
+			install -m 0444 "$f" "/usr/local/share/man/man$sec/"
+		done
+	done
+	command -v makewhatis >/dev/null 2>&1 && makewhatis /usr/local/share/man >/dev/null 2>&1 || true
+}
+
+_uninstall_mans() {
+	rm -f /usr/local/share/man/man4/mac_lomac_grok.4 \
+		/usr/local/share/man/man5/mac_lomac_grok.conf.5 \
+		/usr/local/share/man/man7/mac_lomac_grok.7 \
+		/usr/local/share/man/man8/mac_lomac_grok.8
+}
+
+# ---------- stage (mutate /etc, after snapshot) ----------
+_load_policy() {
+	trusted_class=trusted
+	sandbox_class=sandbox
+	trusted_group=lomac-trusted
+	sandbox_group=lomac-sandbox
+	default_role=sandbox
+	root_label='lomac/equal(equal-equal)'
+	trusted_label='lomac/high(low-high)'
+	sandbox_label='lomac/10[2]'
+	pf="${mac_lomac_grok_dir}/POLICY"
+	[ -f "$pf" ] || return 0
+	while IFS= read -r line || [ -n "$line" ]; do
+		case $line in \#*|"") continue ;; esac
+		key=${line%%=*}
+		val=${line#*=}
+		case $key in
+		TRUSTED_CLASS) trusted_class=$val ;;
+		SANDBOX_CLASS) sandbox_class=$val ;;
+		TRUSTED_GROUP) trusted_group=$val ;;
+		SANDBOX_GROUP) sandbox_group=$val ;;
+		DEFAULT_ROLE) default_role=$val ;;
+		ROOT_LABEL) root_label=$val ;;
+		TRUSTED_LABEL) trusted_label=$val ;;
+		SANDBOX_LABEL) sandbox_label=$val ;;
+		esac
+	done < "$pf"
+}
+
+_append_marked() {
+	f=$1
+	if [ ! -f "$f" ]; then
+		cat >/dev/null
+		return 0
+	fi
+	if grep -q "$MARK_B" "$f" 2>/dev/null; then
+		[ "$_test" = 1 ] && echo "unchanged (marked block present): $f"
+		cat >/dev/null
+		return 0
+	fi
+	if [ "$_test" = 1 ]; then
+		_would "append marked block to $f"
+		sed 's/^/  /'
+		return 0
+	fi
+	{
+		echo
+		echo "# ${MARK_B}"
+		cat
+		echo "# ${MARK_E}"
+	} >> "$f"
+}
+
+_replace_marked() {
+	f=$1
+	[ -f "$f" ] || return 0
+	body=$(cat)
+	if [ "$_test" = 1 ]; then
+		tmp=$(mktemp)
+		cp -p "$f" "$tmp"
+		# strip on the copy
+		awk -v b="$MARK_B" -v e="$MARK_E" '
+			index($0, b) { skip=1; next }
+			index($0, e) { skip=0; next }
+			!skip { print }
+		' "$tmp" > "${tmp}.s" && mv "${tmp}.s" "$tmp"
+		{
+			echo
+			echo "# ${MARK_B}"
+			printf '%s\n' "$body"
+			echo "# ${MARK_E}"
+		} >> "$tmp"
+		_diff_u "$f" "$tmp"
+		rm -f "$tmp"
+		return 0
+	fi
+	_strip_marks "$f"
+	{
+		echo
+		echo "# ${MARK_B}"
+		printf '%s\n' "$body"
+		echo "# ${MARK_E}"
+	} >> "$f"
+}
+
+_ensure_root_label() {
+	lbl=$1
+	# Replace an existing lomac label on the root class, or insert after :tc=default:
+	awk -v lbl="$lbl" '
+		BEGIN { in_root=0; done=0 }
+		/^root:\\$/ { in_root=1 }
+		in_root && /^[a-z]/ && !/^root:/ { in_root=0 }
+		in_root && /^:label=lomac\// {
+			print ":label=" lbl ":"
+			done=1
+			next
+		}
+		in_root && /^:tc=default:\\$/ {
+			print
+			next
+		}
+		in_root && /^:tc=default:$/ {
+			if (!done) {
+				print ":tc=default:\\"
+				print ":label=" lbl ":"
+				done=1
+				next
+			}
+		}
+		{ print }
+	' /etc/login.conf > /etc/login.conf.mac_lomac_grok.tmp
+	if [ "$_test" = 1 ]; then
+		_diff_u /etc/login.conf /etc/login.conf.mac_lomac_grok.tmp
+		rm -f /etc/login.conf.mac_lomac_grok.tmp
+		return 0
+	fi
+	mv /etc/login.conf.mac_lomac_grok.tmp /etc/login.conf
+}
+
+_members() { pw groupshow "$1" 2>/dev/null | awk -F: '{print $4}' | tr ',' ' '; }
+
+_assign_class() {
+	case $1 in root|toor|"") return 0 ;; esac
+	cur=$(awk -F: -v u="$1" '$1==u {print $5}' /etc/master.passwd)
+	[ "$cur" = "$2" ] && return 0
+	if [ "$_test" = 1 ]; then
+		_would "pw usermod $1 -L $2  (now '${cur:-empty}')"
+		return 0
+	fi
+	pw usermod "$1" -L "$2"
+	_info "pw(8) $1 -> class $2"
+}
+
+_sync_pw_classes() {
+	# Group membership is the source of truth; new members need a class occasionally.
+	_load_policy
+	for u in $(_members "$trusted_group"); do _assign_class "$u" "$trusted_class"; done
+	for u in $(_members "$sandbox_group"); do _assign_class "$u" "$sandbox_class"; done
+	if [ "$default_role" = sandbox ] || [ "$default_role" = trusted ]; then
+		def=$sandbox_class
+		[ "$default_role" = trusted ] && def=$trusted_class
+		awk -F: '($3 >= 1001) && ($3 < 65534) { print $1 }' /etc/passwd |
+		while read -r u; do
+			cur=$(awk -F: -v u="$u" '$1==u {print $5}' /etc/master.passwd)
+			case $cur in
+			"$trusted_class"|"$sandbox_class") continue ;;
+			esac
+			[ -n "$cur" ] && [ "$cur" != "0" ] && [ "$default_role" = sandbox ] && continue
+			_assign_class "$u" "$def"
+		done
+	fi
+}
+
+_apply_config() {
+	# Idempotent. Does not touch PREINSTALL. Does not setfsmac(8).
+	mkdir -p "${mac_lomac_grok_db}"
+	_load_policy
+	dir=${mac_lomac_grok_dir}
+	official="${dir}/lomac-policy.contexts"
+	overlay="${dir}/lomac-overlay.contexts"
+	x11="${dir}/x11-xorg.contexts"
+	devm="${dir}/dev-modern.contexts"
+	if [ ! -f "$official" ]; then
+		_err "missing $official (run install first)"
+		return 1
+	fi
+
+	oldhash=""
+	[ -f "${mac_lomac_grok_db}/contexts.sha256" ] && oldhash=$(cat "${mac_lomac_grok_db}/contexts.sha256")
+	{
+		echo "# ${MARK_B}"
+		# First-match: modern /dev names, Xorg/X11, site overlay, official PLM.
+		[ -s "$devm" ] && cat "$devm" && echo
+		[ -s "$x11" ] && cat "$x11" && echo
+		[ -s "$overlay" ] && cat "$overlay" && echo
+		cat "$official"
+		echo "# ${MARK_E}"
+	} > "${mac_lomac_grok_db}/.contexts.proposed"
+	newhash=$(sha256 -q "${mac_lomac_grok_db}/.contexts.proposed" 2>/dev/null || sha256sum "${mac_lomac_grok_db}/.contexts.proposed" | awk '{print $1}')
+	if [ "$_test" = 1 ]; then
+		_diff_u "${mac_lomac_grok_contexts}" "${mac_lomac_grok_db}/.contexts.proposed"
+	else
+		mkdir -p "${mac_lomac_grok_db}"
+		mv "${mac_lomac_grok_db}/.contexts.proposed" "${mac_lomac_grok_contexts}"
+		chmod 0644 "${mac_lomac_grok_contexts}"
+		echo "$newhash" > "${mac_lomac_grok_db}/contexts.sha256"
+		_info "wrote ${mac_lomac_grok_contexts}"
+		if [ -n "$oldhash" ] && [ "$oldhash" != "$newhash" ]; then
+			_info "contexts changed — run: service ${name} onelabel"
+		fi
+	fi
+
+	_append_marked /boot/loader.conf <<'EOF'
+mac_lomac_load="YES"
+security.mac.lomac.enabled=0
+security.mac.lomac.trust_all_interfaces=1
+security.mac.lomac.ptys_equal=1
+EOF
+
+	_append_marked /etc/sysctl.conf <<'EOF'
+security.mac.lomac.enabled=0
+security.mac.lomac.ptys_equal=1
+EOF
+
+	if [ -f /etc/mac.conf ] && ! grep -q 'lomac' /etc/mac.conf; then
+		_append_marked /etc/mac.conf <<'EOF'
+default_labels file ?lomac
+default_labels ifnet ?lomac
+default_labels process ?lomac
+default_labels socket ?lomac
+EOF
+	fi
+
+	_replace_marked /etc/login.conf <<EOF
+${trusted_class}:\\
+	:ignorenologin:\\
+	:label=${trusted_label}:\\
+	:tc=default:
+${sandbox_class}:\\
+	:label=${sandbox_label}:\\
+	:tc=default:
+EOF
+	_ensure_root_label "$root_label"
+	if [ "$_test" = 1 ]; then
+		_would "cap_mkdb /etc/login.conf"
+	else
+		cap_mkdb /etc/login.conf
+		_info "cap_mkdb(1) rebuilt login.conf.db"
+	fi
+
+	created=""
+	for g in "$trusted_group" "$sandbox_group"; do
+		if ! pw groupshow "$g" >/dev/null 2>&1; then
+			if [ "$_test" = 1 ]; then
+				_would "pw groupadd $g"
+			else
+				pw groupadd "$g"
+				_info "pw(8) groupadd $g"
+			fi
+			created="$created $g"
+		fi
+	done
+	oldg=""
+	[ -f "${mac_lomac_grok_db}/created_groups" ] && oldg=$(cat "${mac_lomac_grok_db}/created_groups")
+	if [ "$_test" != 1 ]; then
+		echo "$oldg $created" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ' > "${mac_lomac_grok_db}/created_groups"
+	fi
+
+	_sync_pw_classes
+
+	_append_marked /etc/rc.conf <<EOF
+${name}_enable="NO"
+${name}_dir="${dir}"
+EOF
+}
+
+mac_lomac_grok_stage() {
+	if [ ! -s "${mac_lomac_grok_db}/zfs.snaps" ] && [ "${MAC_LOMAC_GROK_SKIP_SNAPSHOT:-0}" != 1 ]; then
+		_info "no ZFS snapshot recorded. extra-safe: service ${name} onesnapshot"
+		_info "to continue without ZFS: MAC_LOMAC_GROK_SKIP_SNAPSHOT=1 service ${name} onestage"
+	fi
+	_config_snapshot || return 1
+	_apply_config || return 1
+	_info "staged. module not loaded. next: service ${name} onelabel (after kldload/start)"
+}
+
+mac_lomac_grok_update() {
+	# Occasional: new group members, POLICY label edits, contexts overlay, cap_mkdb.
+	# Does not snapshot, kldload, setfsmac, or enforce.
+	if [ ! -f "${PRE}/COMPLETE" ]; then
+		_info "no PREINSTALL yet; running stage instead"
+		mac_lomac_grok_stage
+		return $?
+	fi
+	_apply_config || return 1
+	_info "updated login.conf(5)/groups/contexts. file labels unchanged (onelabel if contexts.sha256 changed)"
+}
+
+# ---------- label / check / enforce ----------
+mac_lomac_grok_label() {
+	if [ "$_test" = 1 ]; then
+		if ! _have_kld; then
+			_would "kldload mac_lomac (needed before setfsmac)"
+			echo "cannot read current labels until the module is loaded; WOULD then:"
+		fi
+		dir=${mac_lomac_grok_dir}
+		echo "WOULD: setfsmac -x \\"
+		[ -s "${dir}/dev-modern.contexts" ] && echo "  -f ${dir}/dev-modern.contexts \\"
+		[ -s "${dir}/x11-xorg.contexts" ] && echo "  -f ${dir}/x11-xorg.contexts \\"
+		[ -s "${dir}/lomac-overlay.contexts" ] && echo "  -f ${dir}/lomac-overlay.contexts \\"
+		echo "  -f ${dir}/lomac-policy.contexts /"
+		mount | awk '{print $3}' | grep -qx /home && echo "WOULD: same setfsmac on /home"
+		if _have_kld; then
+			echo "--- current sentinels (setfsmac would rewrite trees to match spec) ---"
+			mac_lomac_grok_checklabels || true
+		fi
+		en=$(_sysctl_enabled)
+		echo "enforcement would stay ${en:-unset} (label does not enable)"
+		return 0
+	fi
+	if ! _have_kld; then
+		kldload mac_lomac || return 1
+		_set_enabled 0
+	fi
+	testf=/tmp/mac_lomac_grok_label.$$
+	touch "$testf"
+	if ! setfmac lomac/equal "$testf"; then
+		_err "setfmac(8) failed — file labels unsupported; leaving enabled=0"
+		rm -f "$testf"
+		_set_enabled 0
+		return 2
+	fi
+	rm -f "$testf"
+	dir=${mac_lomac_grok_dir}
+	set --
+	[ -s "${dir}/dev-modern.contexts" ] && set -- "$@" -f "${dir}/dev-modern.contexts"
+	[ -s "${dir}/x11-xorg.contexts" ] && set -- "$@" -f "${dir}/x11-xorg.contexts"
+	[ -s "${dir}/lomac-overlay.contexts" ] && set -- "$@" -f "${dir}/lomac-overlay.contexts"
+	set -- "$@" -f "${dir}/lomac-policy.contexts"
+	setfsmac -x "$@" /
+	if mount | awk '{print $3}' | grep -qx /home; then
+		setfsmac -x "$@" /home
+	fi
+	_info "setfsmac(8) done; enforcement still off until: service ${name} oneenforce"
+}
+
+mac_lomac_grok_checklabels() {
+	err=0
+	if ! _have_kld; then
+		_err "mac_lomac(4) not loaded — cannot read labels"
+		return 1
+	fi
+	# Sentinels from the official PLM (lomac-policy.contexts).
+	_chk() {
+		got=$(getfmac "$1" 2>/dev/null) || { _err "getfmac $1 failed"; err=1; return; }
+		echo "$got" | grep -q "$2" || { _err "expected $1 ~ $2; got $got"; err=1; }
+	}
+	_chk /tmp 'lomac/equal' || true
+	_chk /bin/sh 'lomac/high' || true
+	if [ -d /tmp/.X11-unix ]; then
+		_chk /tmp/.X11-unix 'lomac/' || true
+	fi
+	if [ -e /dev/input/event0 ]; then
+		_chk /dev/input/event0 'lomac/' || true
+	fi
+	if [ -e /dev/dri/card0 ]; then
+		_chk /dev/dri/card0 'lomac/' || true
+	fi
+	en=$(_sysctl_enabled)
+	echo "security.mac.lomac.enabled=${en:-unset}"
+	getpmac 2>/dev/null || true
+	return "$err"
+}
+
+mac_lomac_grok_enforce() {
+	if [ "$_test" = 1 ]; then
+		en=$(_sysctl_enabled)
+		if [ "$en" = 1 ]; then
+			echo "unchanged: security.mac.lomac.enabled=1"
+		else
+			_would "sysctl security.mac.lomac.enabled=1  (now ${en:-unset})"
+		fi
+		if ! _have_kld; then
+			echo "note: module not loaded; enforce would fail until start/label"
+		fi
+		return 0
+	fi
+	mac_lomac_grok_checklabels || _info "checklabels reported drift; enforcing anyway (explicit request)"
+	_set_enabled 1
+	_info "enforcing. new login required for login.conf(5) labels"
+}
+
+mac_lomac_grok_unenforce() {
+	if [ "$_test" = 1 ]; then
+		en=$(_sysctl_enabled)
+		if [ "$en" = 0 ] || [ -z "$en" ]; then
+			echo "unchanged: enabled=${en:-unset}"
+		else
+			_would "sysctl security.mac.lomac.enabled=0  (now $en)"
+		fi
+		return 0
+	fi
+	_set_enabled 0 2>/dev/null || true
+	_info "enforcement off (labels on disk unchanged, inert if you kldunload)"
+}
+
+# ---------- uninstall: restore pre-install behavior ----------
+mac_lomac_grok_uninstall() {
+	_info "restoring pre-install behavior (not wiping MAC xattrs; they are inert without mac_lomac(4))"
+
+	if [ "$_test" = 1 ]; then
+		en=$(_sysctl_enabled)
+		[ "$en" = 1 ] && _would "sysctl security.mac.lomac.enabled=0"
+		_have_kld && _would "kldunload mac_lomac"
+	else
+		_set_enabled 0 2>/dev/null || true
+		if _have_kld; then
+			kldunload mac_lomac 2>/dev/null || _err "kldunload failed; enabled=0 so policy is not enforced"
+		fi
+	fi
+
+	if [ -f "${PRE}/COMPLETE" ]; then
+		_restore_file /boot/loader.conf
+		_restore_file /etc/sysctl.conf
+		_restore_file /etc/mac.conf
+		_restore_file /etc/rc.conf
+		_restore_file /etc/rc.conf.local
+		_restore_file /etc/login.conf
+		if [ "$_test" = 1 ]; then
+			[ -f "${PRE}/_etc_login.conf.db" ] && _would "restore /etc/login.conf.db" || _would "cap_mkdb /etc/login.conf"
+		elif [ -f "${PRE}/_etc_login.conf.db" ]; then
+			cp -p "${PRE}/_etc_login.conf.db" /etc/login.conf.db
+			_info "restored /etc/login.conf.db"
+		else
+			cap_mkdb /etc/login.conf
+		fi
+		_restore_file "${mac_lomac_grok_contexts}"
+		if [ -f "${PRE}/user.classes" ]; then
+			while IFS=: read -r u cl; do
+				case $u in root|toor|""|\#*) continue ;; esac
+				[ -z "$u" ] && continue
+				pw usershow "$u" >/dev/null 2>&1 || continue
+				now=$(awk -F: -v u="$u" '$1==u {print $5}' /etc/master.passwd)
+				[ "$now" = "$cl" ] && continue
+				if [ "$_test" = 1 ]; then
+					_would "pw usermod $u -L '${cl:-}'  (now '${now:-empty}')"
+					continue
+				fi
+				if [ -n "$cl" ]; then
+					pw usermod "$u" -L "$cl" || true
+				else
+					pw usermod "$u" -L "" 2>/dev/null || pw usermod "$u" -L default || true
+				fi
+			done < "${PRE}/user.classes"
+			[ "$_test" != 1 ] && _info "restored login classes from PREINSTALL"
+		fi
+	else
+		_err "no PREINSTALL snapshot; stripping marked stanzas only"
+		if [ "$_test" = 1 ]; then
+			_would "strip marked blocks from loader.conf sysctl.conf mac.conf rc.conf login.conf"
+			_would "rm ${mac_lomac_grok_contexts}"
+		else
+			_strip_marks /boot/loader.conf
+			_strip_marks /etc/sysctl.conf
+			_strip_marks /etc/mac.conf
+			_strip_marks /etc/rc.conf
+			_strip_marks /etc/login.conf
+			cap_mkdb /etc/login.conf 2>/dev/null || true
+			rm -f "${mac_lomac_grok_contexts}"
+		fi
+	fi
+
+	if [ -f "${mac_lomac_grok_db}/created_groups" ]; then
+		for g in $(cat "${mac_lomac_grok_db}/created_groups"); do
+			[ -z "$g" ] && continue
+			if [ "$_test" = 1 ]; then
+				_would "pw groupdel $g"
+			else
+				pw groupdel "$g" 2>/dev/null && _info "pw(8) groupdel $g" || true
+			fi
+		done
+	fi
+
+	if [ "$_test" = 1 ]; then
+		_would "rm /usr/local/etc/rc.d/mac_lomac_grok /usr/local/etc/mac_lomac_grok.conf"
+		_would "rm -rf ${mac_lomac_grok_dir} and man pages"
+		_would "keep PREINSTALL $PRE"
+		return 0
+	fi
+
+	# Drop installed package files. Keep PREINSTALL.
+	rm -f /usr/local/etc/rc.d/mac_lomac_grok
+	rm -f /usr/local/etc/mac_lomac_grok.conf
+	rm -rf "${mac_lomac_grok_dir}"
+	_uninstall_mans
+	_info "removed /usr/local package files"
+	_info "PREINSTALL snapshot kept at $PRE (delete by hand if you want)"
+	_info "reboot not required for LOMAC off; new login to drop login.conf(5) labels already restored on disk"
+}
+
+mac_lomac_grok_testsnapshot() { _test=1; echo "=== test snapshot (no changes) ==="; mac_lomac_grok_snapshot; }
+mac_lomac_grok_teststage() { _test=1; echo "=== test stage (no changes) ==="; mac_lomac_grok_stage; }
+mac_lomac_grok_testupdate() { _test=1; echo "=== test update (no changes) ==="; mac_lomac_grok_update; }
+mac_lomac_grok_testlabel() { _test=1; echo "=== test label (no changes) ==="; mac_lomac_grok_label; }
+mac_lomac_grok_teststart() { _test=1; echo "=== test start (no changes) ==="; mac_lomac_grok_start; }
+mac_lomac_grok_testenforce() { _test=1; echo "=== test enforce (no changes) ==="; mac_lomac_grok_enforce; }
+mac_lomac_grok_testunenforce() { _test=1; echo "=== test unenforce (no changes) ==="; mac_lomac_grok_unenforce; }
+mac_lomac_grok_testuninstall() { _test=1; echo "=== test uninstall (no changes) ==="; mac_lomac_grok_uninstall; }
+
+run_rc_command "$1"

@@ -1,0 +1,36 @@
+.Dd August 22, 2026
+.Dt MAC_GENERIC_GROK 5
+.Os
+.Sh NAME
+.Nm POLICIES , POLICY
+.Nd configuration for
+.Xr mac_generic_grok 8
+.Sh DESCRIPTION
+.Ss POLICIES
+One module stem per line:
+.Dq seeotheruids ,
+.Dq ifoff ,
+.Dq portacl ,
+.Dq bsdextended ,
+.Dq partition ,
+.Dq ipacl ,
+.Dq do ,
+.Dq priority .
+Comments start with
+.Ql # .
+.Ss POLICY
+.Bl -tag -width SEEOTHERUIDS_EXEMPT_GID
+.It Va SEEOTHERUIDS_EXEMPT_GID
+GID exempt from
+.Xr mac_seeotheruids 4
+.Pq default 0, wheel .
+.It Va PORTACL_RULES
+String for
+.Va security.mac.portacl.rules .
+.El
+.Sh FILES
+.Pa /usr/local/etc/mac_generic_grok/POLICIES ,
+.Pa /usr/local/etc/mac_generic_grok/POLICY
+.Sh SEE ALSO
+.Xr mac_generic_grok 8 ,
+.Xr loader.conf 5

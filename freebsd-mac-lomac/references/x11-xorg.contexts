@@ -1,0 +1,79 @@
+#
+# X11 socket/log exemptions: original LOMAC PLM (XFree86 /tmp/.X11-unix
+# and /usr/tmp/.X11-unix) plus paths Xorg(1), XLibre, and rc.d/cleartmp(8)
+# use on current FreeBSD. Applied *before* the official PLM so first-match
+# setfsmac(8) wins over the generic (/var)?/tmp(/.*)? equal rule.
+#
+# Labels: directory high[equal] (inherit equal for new sockets); sockets
+# and lockfiles equal (no demotion — mac_lomac(4) "equal" is exempt).
+#
+
+# --- sockets/locks (cleartmp(8) x11_socket_dirs + Xorg lock) ---
+/tmp/\.X11-unix				lomac/high[equal]
+/tmp/\.X11-unix/.*			lomac/equal
+/tmp/\.XIM-unix				lomac/high[equal]
+/tmp/\.XIM-unix/.*			lomac/equal
+/tmp/\.ICE-unix				lomac/high[equal]
+/tmp/\.ICE-unix/.*			lomac/equal
+/tmp/\.font-unix			lomac/high[equal]
+/tmp/\.font-unix/.*			lomac/equal
+/tmp/\.X[0-9]+-lock			lomac/equal
+(/usr)?/tmp/\.X11-unix			lomac/high[equal]
+(/usr)?/tmp/\.X11-unix/.*		lomac/equal
+(/usr)?/tmp/\.XIM-unix			lomac/high[equal]
+(/usr)?/tmp/\.XIM-unix/.*		lomac/equal
+(/usr)?/tmp/\.ICE-unix			lomac/high[equal]
+(/usr)?/tmp/\.ICE-unix/.*		lomac/equal
+(/usr)?/tmp/\.font-unix			lomac/high[equal]
+(/usr)?/tmp/\.font-unix/.*		lomac/equal
+
+# --- Xorg(1) / XFree86 logs (server must write these without demotion) ---
+/var/log/Xorg\..*			lomac/equal
+/var/log/XFree86\..*			lomac/equal
+/var/log/Xorg\.[[:digit:]]+\.log.*	lomac/equal
+
+# --- system X tree: /usr/X11R6 (legacy) and /usr/local (ports Xorg) ---
+/usr/X11R6(/.*)?			lomac/high
+/usr/local/bin/Xorg			lomac/high[equal]
+/usr/local/bin/X			lomac/high[equal]
+/usr/local/bin/Xorg\.wrap		lomac/high[equal]
+/usr/local/lib/xorg(/.*)?		lomac/high
+/usr/local/lib/X11(/.*)?		lomac/high
+/usr/local/share/X11(/.*)?		lomac/high
+/usr/local/etc/X11(/.*)?		lomac/high[equal]
+
+# --- DRM / input (names changed since agp(4) / syscons(4) PLM) ---
+# cardN is HIGH in dev-modern.contexts (DRM master ≈ old agp).
+# renderD* is the unprivileged render node — keep equal.
+/dev/dri/renderD.*			lomac/equal
+/dev/dri(/.*)?				lomac/equal
+# vt(4) consoles (syscons ttyv* still used)
+/dev/ttyv.*				lomac/equal
+/dev/consolectl				lomac/equal
+/dev/acpi_video				lomac/equal
+# evdev(4) / hid(4) — Xorg libinput; not /dev/mousesys of the 2001 PLM
+/dev/input(/.*)?			lomac/equal
+/dev/kbdmux.*				lomac/equal
+/dev/sysmouse				lomac/equal
+/dev/psm.*				lomac/equal
+/dev/ums.*				lomac/equal
+/dev/ukbd.*				lomac/equal
+/dev/uhid.*				lomac/equal
+/dev/hidraw.*				lomac/equal
+
+# --- display managers / seatd / dbus (Xorg sessions) ---
+/var/run/user(/.*)?			lomac/equal
+/var/run/seatd\.sock			lomac/equal
+/var/run/dbus(/.*)?			lomac/equal
+/var/run/lightdm(/.*)?			lomac/equal
+/var/run/sddm(/.*)?			lomac/equal
+/usr/local/etc/gdm(/.*)?		lomac/high[equal]
+/usr/local/etc/lightdm(/.*)?		lomac/high[equal]
+/usr/local/etc/sddm(/.*)?		lomac/high[equal]
+
+# --- per-user X auth (official PLM labels /home/.* low; reading these
+#     would demote the session — same class of exemption as the sockets) ---
+(/usr)?/home/[^/]+/\.Xauthority		lomac/equal
+(/usr)?/home/[^/]+/\.ICEauthority	lomac/equal
+(/usr)?/home/[^/]+/\.xsession-errors	lomac/equal
+(/usr)?/home/[^/]+/\.local/share/xorg(/.*)?	lomac/equal

@@ -1,0 +1,467 @@
+.Dd August 22, 2026
+.Dt PQAC 7
+.Os
+.Sh NAME
+.Nm pqac
+.Nd exoteric and esoteric notes on post-quantum access control
+.Sh SYNOPSIS
+.Nm
+is a short paper, not a utility.
+Read it as
+.Xr man 7 ,
+or render a PDF:
+.Bd -literal -offset indent
+mandoc -T pdf pqac.7 > pqac.pdf
+.Ed
+.Sh ABSTRACT
+A quantum adversary is not a quantum operating system.
+The defender considered here is still a von Neumann machine:
+binary words, a shared store, a kernel that fetches what it polices.
+The adversary is allowed
+.Em BQP
+and Grover search, and \(em as a working hypothesis \(em
+coupling to the electrical plant of that machine
+by entanglement or entanglement-enhanced sensing.
+.Pp
+The
+.Em exoteric
+claim is narrow and already usable:
+discretionary access control, mandatory access control, and
+MMU isolation do not rest on a problem in
+.Em BQP .
+They are quantum-adversary-stable
+.Em mediation
+of a classical reference monitor.
+What remains post-quantum-sensitive is
+.Em naming
+.Pq who the subject is before the label attaches :
+.Xr sshd 8 ,
+TLS,
+package signatures.
+.Pp
+The
+.Em esoteric
+claim is the same electrons.
+A page-table walk is the power rail.
+A label in an extended attribute is a pattern of wells that, when read,
+wiggles a bitline.
+In-band and out-of-band were a filing convenience.
+If a probe can taste switching, it is tasting mediation.
+Containing who may bring a high object into a core is then
+a lid on which recipes may boil \(em
+resistance, not a Faraday cage, and not a proof that
+quantum coupling is cheap.
+.Pp
+This suite's practice
+.Pq Xr mac_grok 8 , Xr mac_lomac_grok 8
+is the exoteric half made operational on
+.Fx .
+The esoteric half is philosophy the operator may yet prove.
+The paper states both, and the obligations of a proof,
+without pretending the second half is already a theorem.
+.Sh THREAT MODEL
+.Bl -tag -width defender
+.It Sy Defender
+Classical stored-program host.
+.Fx
+GENERIC,
+.Xr mac 4
+available,
+.Xr mac_lomac 4
+as the integrity policy,
+Unix DAC still in force, MMU and virtual memory in force.
+Not a quantum ISA.
+Not a promise that the kernel is small.
+.It Sy Adversary
+Quantum.
+Polynomial-time quantum algorithms
+.Pq Shor on the usual public-key names
+and quadratic unstructured search
+.Pq Grover .
+May also attempt physical coupling to power, ground, and EM
+.Pq the plant
+including, by hypothesis, entanglement or squeezed sensing.
+Does not get a free write to kernel memory from having qubits in a van.
+.It Sy Out of scope as already solved
+Replacing RSA with ML-KEM or ML-DSA.
+That is post-quantum
+.Em cryptography .
+It is necessary on the naming path and insufficient as mediation.
+.El
+.Sh EXOTERIC
+This is the face you can teach from the Handbook in one sitting.
+.Ss Naming versus mediation
+Cryptography binds a name to a subject: host keys, user keys, package
+signatures, TLS to a mirror.
+Access control binds a subject already named to objects and to
+regions of the store: mode bits, MAC grades, page rights.
+.Pp
+Shor wrecks the usual naming path.
+It does not mint
+.Ql lomac/high
+and it does not allocate a PTE.
+A BQP adversary who wishes to
+.Em act as
+a subject still has to produce a classical write the vnode path,
+the MAC hook, and the MMU will accept.
+That is the sense in which DAC + MAC + MMU are
+.Sy quantum-adversary-stable isolation :
+they never took a hardness assumption in number theory.
+.Ss What does not rest on BQP
+.Bl -bullet
+.It
+Unix DAC:
+.Xr chmod 2 ,
+.Xr chown 2 ,
+uid/gid.
+Owner discretion.
+If it fails, the owner
+.Pq or a hijacked uid
+grants the world.
+.It
+.Xr mac_lomac 4 :
+integrity, low-watermark.
+Read low, demote, cannot write high.
+The comparison is
+.Ql subject::higrade >= object::grade .
+The same comparison at 1 Hz and at 100 GbE.
+Extra bandwidth demotes or returns
+.Er EPERM
+sooner.
+.It
+The MMU and VM subsystem: address spaces, W^X, rings.
+.Xr mac_lomac 4
+may revoke
+.Xr mmap 2
+on demotion.
+The MMU does not know a LOMAC grade;
+the policy uses the VM machinery.
+.It
+Optional orthogonal modules:
+.Xr mac_seeotheruids 4
+and friends.
+Hide, silence, port-bind.
+Still classical hooks.
+.El
+.Pp
+These layers are
+.Em not
+semi-redundant copies of one lock.
+They fail differently.
+A
+.Xr chmod 1
+the owner should not have granted does not punch a high label.
+A wild pointer does not rewrite
+.Pa /etc/login.conf .
+A demoted process still cannot write
+.Pa /bin
+even if DAC would allow it.
+That is mechanism diversity against a quantum adversary who
+only breaks
+.Em one
+kind of thing
+.Pq a modulus, a mapping, a mode bit .
+.Ss What remains fragile
+Whoever the quantum adversary
+.Em becomes
+still has to pass
+.Xr sshd 8
+.Pq or equivalent
+before
+.Xr login.conf 5
+attaches
+.Ql lomac/... .
+Isolation after login is the part this suite actually builds.
+The naming path is a separate retrofit
+.Pq post-quantum public key, or a non-cryptographic gate .
+Do not advertise
+.Ql root contained
+.Pq Xr mac 9
+and do not advertise
+.Ql Kyber by kldload .
+.Ss Practice
+.Xr mac_grok 8
+snapshots the pool
+.Pq Xr zfs 8 Cm snapshot Fl r
+on filesystems and zvols, optional
+.Xr zpool-checkpoint 8 ,
+then stages
+.Xr mac_lomac_grok 8
+and
+.Xr mac_generic_grok 8 .
+Enforce only in a test window.
+Walk Handbook ch.19 troubleshooting and the package
+.Pa README
+section
+.Dq Known issues
+first.
+Uninstall restores pre-install
+.Em behavior
+from
+.Pa PREINSTALL ;
+it is not a forensic wipe and it is not a pool rewind.
+.Pp
+LOMAC is chosen because the proof is short:
+a sandbox subject cannot write-up into high OS objects after a low read.
+Roles are
+.Xr pw 8
+groups bound to
+.Xr login.conf 5
+classes, not per-account specfiles.
+That is the exoteric work.
+.Sh ESOTERIC
+This is the face you tell someone who has sat with the die
+and is willing to mix the metaphors until they share a pot.
+.Ss Same electrons
+The MMU is not a fairy standing beside the power distribution network.
+A PTE walk
+.Em is
+the rail.
+.Xr chmod 2
+is charge in a cache line.
+A LOMAC label in a ZFS system extended attribute is a pattern of wells
+that will, when interpreted, wiggle a bitline.
+.Pp
+.Dq In-band
+and
+.Dq out-of-band
+were a clerk's distinction: the kernel's story about the soup,
+and the soup.
+If a probe can taste switching, it is tasting
+.Em mediation .
+Containing who may bring a high object into a core is then not
+.Dq software, therefore irrelevant to physics .
+It is putting a lid on which recipes are allowed to boil.
+.Ss Three shadows, one body
+DAC, MAC, MMU: on the whiteboard, orthogonal.
+In the die, one animal's shadows on three walls.
+Owner bit, grade, page right \(em three names for
+.Dq this subject may disturb this region of the store .
+.Pp
+A quantum adversary who only factors moduli walks around the animal.
+One who couples to the store is fighting the animal.
+Semi-redundant, if you must use that word: not two padlocks on one hasp,
+but overlapping umbra.
+Break one story and the other two still describe the same current.
+.Ss The tide and the cup
+.Xr mac_lomac 4
+is a tide-line.
+Read low, you sink, you cannot write the hill.
+A quantum adversary is not a bigger wave in that metaphor;
+Shor is a different ocean.
+Grover is a pump with a square-root crank.
+The tide-line does not move because the crank got better.
+.Pp
+von Neumann's cup: code and data drink together.
+The MMU, NX, rings, MAC \(em partitions in the cup.
+A quantum ISA would smash the cup.
+A quantum
+.Em adversary
+still has to sip from
+.Em this
+cup.
+The claim
+.Dq entanglement with the PSU
+is the claim that you can sip without using the handles we installed.
+The handles were never
+.Dq not electricity .
+They were
+.Em named
+electricity.
+Naming is cheap.
+Coupling to a named net in a 3 GHz kitchen is not.
+.Ss Probe as guest, not ghost
+Shor is the celebrity quantum trick: clean algebra, cold qubits,
+a problem written down in advance.
+Coupling usefully to a wall-wart, or even Heisenberg-limited listening
+to one rail under a ground plane, is the trade.
+Thermal baths eat Bell pairs for breakfast.
+Squeezed sensors help signal-to-noise;
+they do not print a map of
+.Ql lomac/high .
+You still need placement, bandwidth, a correlator, and usually
+a local modulator.
+That modulator is a process.
+Processes have uids, labels, mappings.
+.Pp
+Do not presume the quantum things come easy.
+Factoring is the paper.
+Coupling is the apprenticeship.
+.Ss Named and unnamed stock
+If the channel factors through a kernel-visible subject,
+the monitor still bites: sandbox, LOMAC, seeotheruids, page rights
+constrain who may
+.Em play
+a secret onto the bus for a probe to hear
+.Pq the RAMBO-shaped conductor, now with a fancier microphone .
+That is resistance.
+.Pp
+.Em Imperviousness
+of the electrical plant is a different soup.
+It needs a no-distinguishability claim:
+for every allowed run, the adversary's observable is independent
+of high objects.
+POSIX MAC does not give you that.
+Constant-power logic, filtered PDN, shielding, not cooking secrets
+in a hot core \(em those are unnamed stock.
+You may compose them with MAC
+.Pq high work only in a shielded domain .
+You cannot derive them from
+.Pa mac_lomac.ko .
+.Pp
+Integrity is still the wrong primary label for leakage.
+LOMAC lets you read down and demotes you.
+An authorized trusted subject computing on a high object
+.Em is
+a hot core.
+Confidentiality-style non-interference is the property a leakage thesis
+must prove;
+demotion-on-read is a lemma at best, a mute, not a cage.
+.Sh THESES
+Numbered so they can be denied separately.
+.Bl -tag -width T3xx
+.It T1
+A quantum adversary does not obtain a free classical write
+from BQP alone.
+The reference monitor still runs.
+.It T2
+DAC, MAC, and MMU are quantum-adversary-stable mediation
+on a von Neumann defender.
+They are post-quantum
+.Em access control
+in that sense, and not post-quantum cryptography.
+.It T3
+.Pq working hypothesis
+Coupling to the classical electrical plant, including by
+entanglement or entanglement-enhanced sensing, can exist
+as an attack channel.
+.It T4
+If that channel factors through a kernel-visible subject or object,
+T1 and T2 still apply: the cook can be labeled.
+If it does not factor, T1 and T2 are silent, and you are in
+TEMPEST and enclave land.
+.It T5
+Quantum advantage against the plant does not come easy.
+Decoherence, placement, and distinguishing a vnode in GENERIC's noise
+are the adversary's proof burden, not a lemma from Shor.
+.El
+.Pp
+T1 and T2 are the exoteric paper, and this suite implements them.
+T3 is presumed so T4 can be stated.
+T4 is two theorems, not one, until the coupling map is on the page.
+T5 is the discipline that keeps T3 from swallowing the work.
+.Sh PROOF OBLIGATIONS
+A proof of the esoteric half, if the operator can finish it, must:
+.Bl -enum
+.It
+Exhibit a coupling map from labeled computation to an observable
+the quantum adversary can distinguish
+.Pq current, B-field, impedance echo, squeezed magnetometry .
+.It
+Show whether that map factors through a kernel-visible subject
+.Pq process, credential, mapping, vnode
+or through the plant alone
+.Pq authorized hot core, or idle rail .
+.It
+If it factors, show that the policy
+.Pq DAC + MAC + MMU
+makes the observable independent of what one cares about,
+or bound the remaining leakage.
+Independence is imperviousness.
+A bound is resistance.
+Do not use one word for the other.
+.It
+If it does not factor, say so, and move the remaining controls
+out of
+.Xr mac 4
+into physics: shielding, PDN filter, constant power, air gap.
+.It
+Keep LOMAC's actual axiom.
+Do not smuggle no-read-down out of a low-watermark.
+If the thesis is secrecy of emanations, say MLS or Biba or
+an enclave, and say why this suite is still the lid on the cook.
+.El
+.Sh DO NOT PRESUME
+.Bl -bullet
+.It
+Do not presume that
+.Dq post-quantum
+will be read as anything but Kyber unless you say
+.Nm
+aloud.
+.It
+Do not presume a quantum ISA.
+The cup is still binary.
+.It
+Do not presume Grover finds kernel bugs.
+Unstructured search is not a confused-deputy oracle.
+.It
+Do not presume entanglement with a 300 K PSU is free,
+nor that it is impossible.
+State T3, then pay for T4.
+.It
+Do not presume
+.Xr kldload 8
+of
+.Nm mac_lomac
+is a Faraday cage, a naming retrofit, or a proof.
+It is a tide-line in a named store.
+.El
+.Sh RENDERING
+Source of this paper:
+.Pa man/man7/pqac.7
+in the
+.Nm freebsd-mac
+skill.
+.Bd -literal -offset indent
+mandoc -T lint pqac.7
+mandoc -T pdf pqac.7 > pqac.pdf
+mandoc -T ascii pqac.7 | less
+.Ed
+.Pp
+.Xr mandoc 1
+emits PDF directly.
+Install with the rest of the suite manuals under
+.Pa /usr/local/share/man/man7/ .
+.Sh SEE ALSO
+.Xr chmod 1 ,
+.Xr mandoc 1 ,
+.Xr mmap 2 ,
+.Xr mac 4 ,
+.Xr mac_lomac 4 ,
+.Xr mac_seeotheruids 4 ,
+.Xr login.conf 5 ,
+.Xr mac_grok 7 ,
+.Xr mac_lomac_grok 7 ,
+.Xr mac_generic_grok 8 ,
+.Xr mac_grok 8 ,
+.Xr mac_lomac_grok 8 ,
+.Xr sshd 8 ,
+.Xr mac 9
+.Pp
+The
+.Fx
+Handbook ch.19, especially troubleshooting.
+Fraser, T.,
+.Dq LOMAC: Low Water-Mark Integrity Protection for COTS Environments ,
+USENIX FREENIX 2001
+.Pq exceptions for pump, syslogd, sshd are Linux LOMAC, not this module .
+NIST post-quantum project, for the naming path this paper does not implement.
+.Sh HISTORY
+Spoken first as a refinement of
+.Dq post-quantum access control
+over
+.Xr mac_lomac 4
+on a classical host: not Kyber, not a quantum OS,
+a quantum adversary, then the plant, then the same electrons.
+Written as
+.Nm
+the same day the suite's Known-issues READMEs were finished.
+.Sh AUTHORS
+.An Grok
+and the operator of the
+.Nm freebsd-mac
+skills, 2026-08-22.
+Exoteric practice is the rc.d package.
+Esoteric theses T3 and T4 remain the operator's to prove.
+Godspeed.

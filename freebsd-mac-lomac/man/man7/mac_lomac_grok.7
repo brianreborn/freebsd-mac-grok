@@ -1,0 +1,102 @@
+.Dd August 22, 2026
+.Dt MAC_LOMAC_GROK 7
+.Os
+.Sh NAME
+.Nm mac_lomac_grok
+.Nd overview of the Grok
+.Xr mac_lomac 4
+package
+.Sh DESCRIPTION
+.Xr mac_lomac 4
+is used because the proof is short: a sandbox subject cannot write-up
+into high OS objects after a low read.
+This package does not add
+.Xr mac_biba 4
+or
+.Xr mac_mls 4 .
+.Ss Roles
+Login classes bound to
+.Xr pw 8
+groups, not per-account specfiles:
+.Bl -tag -width sandbox
+.It exempt
+root class,
+.Dq equal(equal-equal)
+.It trusted
+group
+.Dq lomac-trusted ,
+class
+.Dq trusted ,
+label
+.Dq high(low-high)
+.It sandbox
+group
+.Dq lomac-sandbox ,
+class
+.Dq sandbox ,
+label
+.Dq 10[2]
+.Pq handbook default
+.El
+Unlisted users default to sandbox.
+.Ss X11
+The official PLM only special-cased
+.Pa /tmp/.X11-unix
+.Pq XFree86 .
+.Pa dev-modern.contexts
+maps old PLM
+.Pa /dev
+nodes
+.Pq agp, kmem
+to current names
+.Pq Pa /dev/dri/card*
+as high like agp;
+.Pa /dev/mem
+still high .
+.Pa x11-xorg.contexts
+adds
+.Xr cleartmp 8
+dirs,
+.Xr Xorg 1
+under
+.Pa /usr/local ,
+.Pa /dev/dri/renderD* ,
+.Pa /dev/input/event*
+.Pq evdev 4 ,
+.Pa kbdmux
+and
+.Pa hidraw ,
+and
+.Pa ~/.Xauthority
+as
+.Dq equal .
+.Ss Recovery
+.Xr mac_lomac_grok 8 Cm uninstall
+restores pre-install behavior from
+.Pa PREINSTALL .
+Optional
+.Xr zfs 8
+.Cm snapshot Fl r
+and
+.Xr zpool-checkpoint 8
+are offered before mutation when this package is used standalone.
+When composed under
+.Xr mac_grok 8 ,
+the umbrella owns snapshots.
+.Ss Known issues
+Handbook ch.19 troubleshooting, mailing-list and PR notes, and the
+mismatch between the 2001 USENIX LOMAC trusted-binary list and
+.Fx
+.Xr mac_lomac 4
+are in the package
+.Pa README
+section
+.Dq Known issues .
+Walk that before
+.Cm enforce .
+.Sh SEE ALSO
+.Xr mac_lomac_grok 4 ,
+.Xr mac_lomac_grok 8 ,
+.Xr mac_lomac_grok.conf 5 ,
+.Xr mac_lomac 4 ,
+.Xr mac_grok 8

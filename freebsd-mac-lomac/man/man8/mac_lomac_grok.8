@@ -1,0 +1,179 @@
+.\" Copyright (c) 2026. SPDX-License-Identifier: BSD-2-Clause
+.Dd August 22, 2026
+.Dt MAC_LOMAC_GROK 8
+.Os
+.Sh NAME
+.Nm mac_lomac_grok
+.Nd stage, label, update, and revert a
+.Xr mac_lomac 4
+policy
+.Sh SYNOPSIS
+.Nm
+.Ar command
+.Sh DESCRIPTION
+.Nm
+is an
+.Xr rc.subr 8
+script installed as
+.Pa /usr/local/etc/rc.d/mac_lomac_grok .
+It does not implement a kernel policy; it loads and configures
+.Xr mac_lomac 4
+using base tools
+.Xr setfsmac 8 ,
+.Xr login.conf 5 ,
+and
+.Xr loader.conf 5 .
+.Pp
+The
+.Va rcvar
+.Va mac_lomac_grok_enable
+defaults to
+.Dq NO .
+Boot
+.Cm start
+only
+.Xr kldload 8 Ns s
+the module with
+.Va security.mac.lomac.enabled
+set to 0.
+Use
+.Xr service 8
+.Dq one Ns Ar command
+when the rcvar is NO.
+.Pp
+.Nm
+never runs
+.Xr setfsmac 8
+from
+.Cm start .
+Relabeling is the
+.Cm label
+command.
+.Sh COMMANDS
+.Bl -tag -width uninstall
+.It Cm install
+Copy the package under
+.Pa /usr/local
+including this utility and its manual pages.
+.It Cm snapshot
+Recursive
+.Xr zfs 8
+.Cm snapshot Fl r
+of the root pool (filesystems and zvols).
+Optional
+.Xr zpool-checkpoint 8
+if
+.Ev CHECKPOINT Ns =1
+or
+.Va mac_lomac_grok_checkpoint Ns =YES .
+.It Cm stage
+Write a one-time config snapshot under
+.Pa /var/db/mac_lomac_grok/PREINSTALL
+then apply
+.Xr login.conf 5
+classes, groups, and contexts.
+Does not load the module.
+.It Cm update , Cm reload
+Refresh
+.Xr login.conf 5
+.Pq including Xr cap_mkdb 1 ,
+group-to-class maps, and
+.Pa /etc/lomac.contexts
+from
+.Pa POLICY .
+Does not
+.Xr setfsmac 8 .
+If the contexts hash changed, run
+.Cm label .
+.It Cm start , Cm stop , Cm status
+Load or unload
+.Xr mac_lomac 4 .
+.Cm start
+also rebuilds the login capability database and syncs
+.Xr pw 8
+classes.
+Never enables enforcement.
+.It Cm label
+.Xr setfmac 8
+probe, then
+.Xr setfsmac 8 Fl x
+with Xorg overlay, site overlay, and the official PLM spec
+.Pq first match wins .
+.It Cm checklabels
+Read-only sentinels via
+.Xr getfmac 8 .
+.It Cm enforce , Cm unenforce
+Set
+.Va security.mac.lomac.enabled
+to 1 or 0.
+.It Cm test Ns Ar command
+Dry-run of
+.Ar command
+.Pq Cm teststage , Cm testupdate , Cm testlabel , Cm teststart , Cm testenforce , Cm testunenforce , Cm testuninstall , Cm testsnapshot .
+Prints
+.Dq WOULD
+lines and
+.Xr diff 1
+output for files that would change.
+Makes no modifications; valid only if the system is unchanged until the real command runs.
+.It Cm uninstall
+Restore pre-install
+.Em behavior :
+disable and
+.Xr kldunload 8
+the module, restore files and login classes from
+.Pa PREINSTALL ,
+remove
+.Pa /usr/local
+package files including manuals.
+MAC xattrs may remain; they are inert without
+.Xr mac_lomac 4 .
+ZFS snapshots are not destroyed.
+.El
+.Sh FILES
+.Bl -tag -width Pa
+.It Pa /usr/local/etc/rc.d/mac_lomac_grok
+This script.
+.It Pa /usr/local/etc/mac_lomac_grok.conf
+.Xr mac_lomac_grok.conf 5
+.It Pa /usr/local/etc/mac_lomac_grok/
+Contexts,
+.Pa POLICY ,
+README.
+.It Pa /etc/lomac.contexts
+Combined spec installed by
+.Cm stage
+or
+.Cm update .
+.It Pa /var/db/mac_lomac_grok/PREINSTALL
+Config snapshot taken once, never overwritten.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr mac_lomac_grok 4 ,
+.Xr mac_lomac_grok.conf 5 ,
+.Xr mac_lomac_grok 7 ,
+.Xr mac_lomac 4 ,
+.Xr mac 4 ,
+.Xr login.conf 5 ,
+.Xr loader.conf 5 ,
+.Xr setfsmac 8 ,
+.Xr setfmac 8 ,
+.Xr service 8 ,
+.Xr zfs 8 ,
+.Xr zpool-checkpoint 8 ,
+.Xr mac_grok 8
+.Sh BUGS
+Official and mailing-list known issues
+.Pq Handbook ch.19 troubleshooting, Xr setfsmac 8 first-match, mmap revocation, USENIX trusted binaries, PR 178667, /dev PLM vs DRM
+are in the package
+.Pa README
+section
+.Dq Known issues .
+.Sh HISTORY
+The
+.Nm
+utility appeared as part of the Grok
+.Nm freebsd-mac-lomac
+skill.

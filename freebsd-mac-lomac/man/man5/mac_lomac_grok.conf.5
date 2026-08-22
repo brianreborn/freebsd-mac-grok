@@ -1,0 +1,66 @@
+.Dd August 22, 2026
+.Dt MAC_LOMAC_GROK.CONF 5
+.Os
+.Sh NAME
+.Nm mac_lomac_grok.conf , POLICY , lomac-policy.contexts
+.Nd configuration for
+.Xr mac_lomac_grok 8
+.Sh DESCRIPTION
+.Ss mac_lomac_grok.conf
+Sourced via
+.Xr rc.conf 5 .
+Variables:
+.Bl -tag -width mac_lomac_grok_checkpoint
+.It Va mac_lomac_grok_enable
+Default
+.Dq NO .
+.It Va mac_lomac_grok_dir
+Default
+.Pa /usr/local/etc/mac_lomac_grok .
+.It Va mac_lomac_grok_db
+Default
+.Pa /var/db/mac_lomac_grok .
+.It Va mac_lomac_grok_contexts
+Installed spec path, default
+.Pa /etc/lomac.contexts .
+.It Va mac_lomac_grok_checkpoint
+.Dq YES
+to take a
+.Xr zpool-checkpoint 8
+during
+.Cm snapshot .
+.El
+.Ss POLICY
+.Pa KEY=value
+lines consumed by
+.Cm stage
+and
+.Cm update :
+.Va TRUSTED_CLASS , SANDBOX_CLASS , TRUSTED_GROUP , SANDBOX_GROUP ,
+.Va DEFAULT_ROLE , ROOT_LABEL , TRUSTED_LABEL , SANDBOX_LABEL .
+Groups of users share a login class; see
+.Xr mac_lomac_grok 7 .
+.Ss Contexts
+.Xr setfsmac 8
+specfiles, first matching entry wins:
+.Pa dev-modern.contexts
+.Pq current Pa /dev
+names: DRM card vs render, evdev, hid; old agp/kmem still listed ,
+.Pa x11-xorg.contexts
+.Pq Xorg 1 and cleartmp 8 sockets ,
+optional
+.Pa lomac-overlay.contexts ,
+then the official PLM
+.Pa lomac-policy.contexts .
+.Sh FILES
+.Bl -tag -width Pa
+.It Pa /usr/local/etc/mac_lomac_grok.conf
+.It Pa /usr/local/etc/mac_lomac_grok/POLICY
+.It Pa /etc/lomac.contexts
+.El
+.Sh SEE ALSO
+.Xr mac_lomac_grok 8 ,
+.Xr mac_lomac_grok 4 ,
+.Xr setfsmac 8 ,
+.Xr login.conf 5 ,
+.Xr rc.conf 5

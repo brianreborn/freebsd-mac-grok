@@ -1,0 +1,122 @@
+.Dd August 22, 2026
+.Dt MAC_LOMAC_GROK 4
+.Os
+.Sh NAME
+.Nm mac_lomac_grok
+.Nd
+.Xr mac_lomac 4
+kernel policy as loaded by
+.Xr mac_lomac_grok 8
+.Sh SYNOPSIS
+To load the policy at boot, after
+.Xr mac_lomac_grok 8 Cm stage :
+.Bd -literal -offset indent
+mac_lomac_load="YES"
+security.mac.lomac.enabled=0
+security.mac.lomac.trust_all_interfaces=1
+security.mac.lomac.ptys_equal=1
+.Ed
+.Pp
+Enforcement is off until
+.Nm mac_lomac_grok Cm enforce .
+.Sh DESCRIPTION
+This page documents the
+.Em configured
+kernel interface.
+The implementation is
+.Xr mac_lomac 4
+in
+.Pa /boot/kernel/mac_lomac.ko
+.Pq GENERIC includes options MAC .
+.Pp
+.Xr mac_lomac 4
+is an integrity (low-watermark) policy: a subject that reads a
+lower-grade object is demoted and then cannot write higher-grade
+objects.
+.Dq equal
+is exempt from those comparisons.
+.Ss Sysctl
+See
+.Xr mac_lomac 4 .
+This package sets:
+.Bl -tag -width security.mac.lomac.trust_all_interfaces
+.It Va security.mac.lomac.enabled
+0 until
+.Cm enforce ;
+.Cm unenforce
+or
+.Cm uninstall
+returns it to 0.
+.It Va security.mac.lomac.trust_all_interfaces
+Loader tunable
+.Pq RDTUN .
+Must appear in
+.Xr loader.conf 5
+so interfaces are not
+.Dq low
+.Pq which would demote SSH .
+.It Va security.mac.lomac.ptys_equal
+Label new ptys
+.Dq equal .
+.El
+.Ss Labels
+File labels come from
+.Xr setfsmac 8
+using the official PLM sample
+.Pa /usr/share/security/lomac-policy.contexts ,
+the Xorg overlay
+.Pa x11-xorg.contexts ,
+and an optional site overlay.
+Subject labels come from
+.Xr login.conf 5
+.Va label
+on login classes
+.Dq trusted
+.Pq high(low-high)
+and
+.Dq sandbox
+.Pq 10[2] ,
+with
+.Dq root
+.Dq equal(equal-equal)
+unless
+.Pa POLICY
+overrides them.
+.Sh SEE ALSO
+.Xr mac_lomac 4 ,
+.Xr mac 4 ,
+.Xr maclabel 7 ,
+.Xr mac_lomac_grok 8 ,
+.Xr mac_lomac_grok 7 ,
+.Xr setfsmac 8
+.Sh BUGS
+ZFS has no
+.Xr tunefs 8
+.Cm multilabel
+flag.
+.Nm mac_lomac_grok Cm label
+probes
+.Xr setfmac 8
+on
+.Pa /tmp
+and aborts if file labels are unsupported.
+.Pp
+.Xr setfsmac 8
+applies only the first matching spec entry; the official PLM lists
+.Pa /dev(/.*)?
+equal before later
+.Pa /dev
+high lines, so this package feeds overlay specfiles first.
+.Pp
+.Xr mac_lomac 4
+may revoke
+.Xr mmap 2
+on demotion.
+Handbook ch.19
+.Pq troubleshooting: sticky UFS multilabel, Xorg, _secure_path, whoami/root
+and mailing-list/PR notes
+.Pq USENIX trusted binaries vs FreeBSD labels, PR 178667 aux/extattr, /dev PLM vs DRM/evdev
+are catalogued in the package
+.Pa README
+section
+.Dq Known issues .

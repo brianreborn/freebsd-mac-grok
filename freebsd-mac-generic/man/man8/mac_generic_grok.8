@@ -1,0 +1,87 @@
+.Dd August 22, 2026
+.Dt MAC_GENERIC_GROK 8
+.Os
+.Sh NAME
+.Nm mac_generic_grok
+.Nd stage and revert orthogonal
+.Xr mac 4
+modules
+.Sh SYNOPSIS
+.Nm
+.Ar command
+.Sh DESCRIPTION
+.Nm
+loads kernel modules other than
+.Xr mac_lomac 4
+.Pq e.g. Xr mac_seeotheruids 4
+from a
+.Pa POLICIES
+list.
+It does not take
+.Xr zfs 8
+snapshots;
+.Xr mac_grok 8
+does that for the suite.
+.Pp
+.Va mac_generic_grok_enable
+defaults to
+.Dq NO .
+Use
+.Xr service 8
+.Dq one Ns Ar command .
+.Sh COMMANDS
+.Bl -tag -width uninstall
+.It Cm install
+Install under
+.Pa /usr/local
+including manuals.
+.It Cm stage
+Config
+.Pa PREINSTALL
+then marked
+.Xr loader.conf 5
+stanzas.
+.It Cm update , Cm reload
+Rewrite stanzas from
+.Pa POLICIES
+without a new snapshot.
+.It Cm start , Cm stop , Cm status
+.Xr kldload 8
+or
+.Xr kldunload 8
+each listed module.
+.It Cm uninstall
+Restore
+.Pa PREINSTALL ,
+unload modules, remove
+.Pa /usr/local
+files including manuals.
+.El
+.Sh FILES
+.Bl -tag -width Pa
+.It Pa /usr/local/etc/mac_generic_grok/POLICIES
+One module name per line
+.Pq no
+.Dq mac_
+prefix :
+.Dq seeotheruids ,
+.Dq ifoff ,
+.Dq portacl ,
+.Dq bsdextended .
+.It Pa /var/db/mac_generic_grok/PREINSTALL
+.El
+.Sh SEE ALSO
+.Xr mac_generic_grok 4 ,
+.Xr mac_generic_grok 5 ,
+.Xr mac_seeotheruids 4 ,
+.Xr mac_ifoff 4 ,
+.Xr mac_portacl 4 ,
+.Xr mac_bsdextended 4 ,
+.Xr mac_grok 8
+.Sh BUGS
+See the package
+.Pa README
+section
+.Dq Known issues
+for Handbook ch.19 and mailing-list notes
+.Pq ifoff lockout, seeotheruids vs root, single specificgid, ugidfw reload .

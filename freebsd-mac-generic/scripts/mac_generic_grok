@@ -1,0 +1,391 @@
+#!/bin/sh
+#
+# PROVIDE: mac_generic_grok
+# REQUIRE: FILESYSTEMS
+# KEYWORD: shutdown
+#
+# Orthogonal mac(4) modules (seeotheruids, ifoff, portacl, …).
+# No ZFS snapshot here — freebsd-mac / mac_grok owns before/after snaps.
+#
+# Extra (service(8) one* if enable=NO):
+#   install stage update reload uninstall start stop status
+#   teststage testupdate teststart testuninstall  (dry-run)
+#
+# POLICIES file: one module name per line (see references/catalog.md).
+
+# shellcheck disable=SC1091
+. /etc/rc.subr
+
+name="mac_generic_grok"
+rcvar="${name}_enable"
+desc="Orthogonal mac(4) policies (not lomac)"
+
+extra_commands="install stage update reload uninstall teststage testupdate teststart testuninstall"
+
+load_rc_config $name
+
+: "${mac_generic_grok_enable:=NO}"
+: "${mac_generic_grok_dir:=/usr/local/etc/mac_generic_grok}"
+: "${mac_generic_grok_db:=/var/db/mac_generic_grok}"
+: "${mac_generic_grok_src:=}"
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+install_cmd="${name}_install"
+stage_cmd="${name}_stage"
+update_cmd="${name}_update"
+reload_cmd="${name}_update"
+uninstall_cmd="${name}_uninstall"
+teststage_cmd="${name}_teststage"
+testupdate_cmd="${name}_testupdate"
+teststart_cmd="${name}_teststart"
+testuninstall_cmd="${name}_testuninstall"
+
+_test=0
+PRE="${mac_generic_grok_db}/PREINSTALL"
+MARK_B="BEGIN mac_generic_grok"
+MARK_E="END mac_generic_grok"
+
+_err() { echo "${name}: $*" >&2; }
+_info() { echo "${name}: $*"; }
+_would() { echo "WOULD: $*"; }
+_diff_u() {
+	if [ -f "$1" ]; then
+		if cmp -s "$1" "$2" 2>/dev/null; then
+			echo "unchanged: $1"
+		else
+			echo "--- would change $1 ---"
+			diff -u "$1" "$2" || true
+		fi
+	else
+		echo "WOULD create $1:"
+		cat "$2"
+	fi
+}
+
+_policies() {
+	pf="${mac_generic_grok_dir}/POLICIES"
+	[ -f "$pf" ] || return 0
+	awk '/^[[:space:]]*#/ {next} NF {print $1}' "$pf"
+}
+
+_kld() { echo "mac_${1}.ko"; }
+
+_config_snapshot() {
+	if [ -f "${PRE}/COMPLETE" ]; then
+		_info "PREINSTALL kept"
+		return 0
+	fi
+	if [ "$_test" = 1 ]; then
+		_would "create PREINSTALL $PRE from loader.conf rc.conf sysctl.conf"
+		return 0
+	fi
+	mkdir -p "$PRE"
+	for f in /boot/loader.conf /etc/sysctl.conf /etc/rc.conf /etc/rc.conf.local \
+		/etc/rc.bsdextended; do
+		[ -f "$f" ] && cp -p "$f" "$PRE/$(echo "$f" | tr / _)"
+	done
+	sysctl security.mac 2>/dev/null > "${PRE}/sysctl.mac" || true
+	kldstat > "${PRE}/kldstat" 2>/dev/null || true
+	date -u +%Y-%m-%dT%H:%M:%SZ > "${PRE}/COMPLETE"
+}
+
+_restore_file() {
+	b="$PRE/$(echo "$1" | tr / _)"
+	if [ "$_test" = 1 ]; then
+		if [ -f "$b" ]; then
+			_diff_u "$1" "$b"
+		elif [ -f "$1" ]; then
+			_would "rm $1"
+		else
+			echo "unchanged: $1 (absent)"
+		fi
+		return 0
+	fi
+	if [ -f "$b" ]; then
+		cp -p "$b" "$1"
+		_info "restored $1"
+	elif [ -f "$1" ]; then
+		rm -f "$1"
+		_info "removed $1"
+	fi
+}
+
+_strip_marks() {
+	f=$1
+	[ -f "$f" ] || return 0
+	awk -v b="$MARK_B" -v e="$MARK_E" '
+		index($0, b) { skip=1; next }
+		index($0, e) { skip=0; next }
+		!skip { print }
+	' "$f" > "${f}.mac_generic_grok.tmp" && mv "${f}.mac_generic_grok.tmp" "$f"
+}
+
+_append_marked() {
+	f=$1
+	if [ ! -f "$f" ]; then
+		cat >/dev/null
+		return 0
+	fi
+	if grep -q "$MARK_B" "$f" 2>/dev/null; then
+		[ "$_test" = 1 ] && echo "unchanged (marked block present): $f"
+		cat >/dev/null
+		return 0
+	fi
+	if [ "$_test" = 1 ]; then
+		_would "append marked block to $f"
+		sed 's/^/  /'
+		return 0
+	fi
+	{
+		echo
+		echo "# ${MARK_B}"
+		cat
+		echo "# ${MARK_E}"
+	} >> "$f"
+}
+
+_replace_marked() {
+	f=$1
+	body=$(cat)
+	if [ ! -f "$f" ]; then
+		return 0
+	fi
+	if [ "$_test" = 1 ]; then
+		tmp=$(mktemp)
+		awk -v b="$MARK_B" -v e="$MARK_E" '
+			index($0, b) { skip=1; next }
+			index($0, e) { skip=0; next }
+			!skip { print }
+		' "$f" > "$tmp"
+		{
+			echo
+			echo "# ${MARK_B}"
+			printf '%s\n' "$body"
+			echo "# ${MARK_E}"
+		} >> "$tmp"
+		_diff_u "$f" "$tmp"
+		rm -f "$tmp"
+		return 0
+	fi
+	_strip_marks "$f"
+	{
+		echo
+		echo "# ${MARK_B}"
+		printf '%s\n' "$body"
+		echo "# ${MARK_E}"
+	} >> "$f"
+}
+
+_load_knobs() {
+	seeotheruids_exempt_gid=0
+	portacl_rules=""
+	pf="${mac_generic_grok_dir}/POLICY"
+	[ -f "$pf" ] || return 0
+	while IFS= read -r line || [ -n "$line" ]; do
+		case $line in \#*|"") continue ;; esac
+		key=${line%%=*}
+		val=${line#*=}
+		case $key in
+		SEEOTHERUIDS_EXEMPT_GID) seeotheruids_exempt_gid=$val ;;
+		PORTACL_RULES) portacl_rules=$val ;;
+		esac
+	done < "$pf"
+}
+
+_stanza_for() {
+	# stdout: loader.conf / sysctl lines for one module
+	p=$1
+	_load_knobs
+	case $p in
+	seeotheruids)
+		echo "mac_seeotheruids_load=\"YES\""
+		echo "security.mac.seeotheruids.enabled=1"
+		echo "security.mac.seeotheruids.specificgid_enabled=1"
+		echo "security.mac.seeotheruids.specificgid=${seeotheruids_exempt_gid}"
+		;;
+	ifoff)
+		echo "mac_ifoff_load=\"YES\""
+		echo "security.mac.ifoff.lo_enabled=1"
+		echo "security.mac.ifoff.other_enabled=0"
+		echo "security.mac.ifoff.bpfrecv_enabled=0"
+		;;
+	portacl)
+		echo "mac_portacl_load=\"YES\""
+		echo "security.mac.portacl.enabled=1"
+		echo "security.mac.portacl.suser_exempt=1"
+		[ -n "$portacl_rules" ] && echo "security.mac.portacl.rules=\"${portacl_rules}\""
+		;;
+	bsdextended)
+		echo "mac_bsdextended_load=\"YES\""
+		;;
+	partition)
+		echo "mac_partition_load=\"YES\""
+		echo "security.mac.partition.enabled=1"
+		;;
+	ipacl)
+		echo "mac_ipacl_load=\"YES\""
+		;;
+	do)
+		echo "mac_do_load=\"YES\""
+		;;
+	priority)
+		echo "mac_priority_load=\"YES\""
+		;;
+	*)
+		_err "unknown policy $p (see catalog.md)"
+		return 1
+		;;
+	esac
+}
+
+_apply_config() {
+	mkdir -p "${mac_generic_grok_db}"
+	{
+		echo "# ${MARK_B}"
+		echo "# generated from ${mac_generic_grok_dir}/POLICIES"
+		for p in $(_policies); do
+			_stanza_for "$p" || return 1
+		done
+		echo "# ${MARK_E}"
+	} > "${mac_generic_grok_db}/loader.snippet"
+
+	_replace_marked /boot/loader.conf < "${mac_generic_grok_db}/loader.snippet"
+
+	# ugidfw lives in rc.conf, not loader
+	if _policies | grep -qx bsdextended; then
+		_append_marked /etc/rc.conf <<'EOF'
+ugidfw_enable="YES"
+EOF
+	fi
+	_append_marked /etc/rc.conf <<EOF
+${name}_enable="NO"
+${name}_dir="${mac_generic_grok_dir}"
+EOF
+	_info "wrote marked stanzas for: $(_policies | tr '\n' ' ')"
+	_info "kldload happens at next boot or: service ${name} onestart"
+}
+
+mac_generic_grok_install() {
+	src=${mac_generic_grok_src:-}
+	if [ -z "$src" ]; then
+		src=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+		case $src in
+		/usr/local/etc/rc.d)
+			_err "run the copy in the result directory, or set mac_generic_grok_src"
+			return 1
+			;;
+		esac
+	fi
+	mkdir -p "${mac_generic_grok_dir}" /usr/local/etc/rc.d "${mac_generic_grok_db}"
+	install -m 0755 "$0" /usr/local/etc/rc.d/mac_generic_grok
+	for f in POLICIES POLICY README; do
+		[ -f "${src}/$f" ] && install -m 0644 "${src}/$f" "${mac_generic_grok_dir}/$f"
+	done
+	_install_mans "$src"
+	_info "installed; man: mac_generic_grok(4,5,8); next: service ${name} onestage"
+}
+
+_install_mans() {
+	s=$1
+	mandir=""
+	[ -d "$s/man" ] && mandir=$s/man
+	[ -z "$mandir" ] && [ -d "$s/../man" ] && mandir=$s/../man
+	[ -n "$mandir" ] || return 0
+	for sec in 4 5 7 8; do
+		[ -d "$mandir/man$sec" ] || continue
+		mkdir -p "/usr/local/share/man/man$sec"
+		for f in "$mandir/man$sec"/*; do
+			[ -f "$f" ] || continue
+			install -m 0444 "$f" "/usr/local/share/man/man$sec/"
+		done
+	done
+	command -v makewhatis >/dev/null 2>&1 && makewhatis /usr/local/share/man >/dev/null 2>&1 || true
+}
+
+mac_generic_grok_stage() {
+	_config_snapshot || return 1
+	_apply_config
+}
+
+mac_generic_grok_update() {
+	if [ ! -f "${PRE}/COMPLETE" ]; then
+		mac_generic_grok_stage
+		return $?
+	fi
+	_apply_config
+}
+
+mac_generic_grok_start() {
+	for p in $(_policies); do
+		mod=$(_kld "$p")
+		if kldstat -q -n "$mod" 2>/dev/null || kldstat -q -m "mac_$p" 2>/dev/null; then
+			[ "$_test" = 1 ] && echo "unchanged: $mod loaded" || _info "$mod already loaded"
+		else
+			if [ "$_test" = 1 ]; then
+				_would "kldload mac_$p"
+			else
+				kldload "mac_$p" || _err "kldload mac_$p failed"
+			fi
+		fi
+	done
+}
+
+mac_generic_grok_stop() {
+	for p in $(_policies); do
+		if [ "$_test" = 1 ]; then
+			kldstat -q -m "mac_$p" 2>/dev/null && _would "kldunload mac_$p"
+		else
+			kldunload "mac_$p" 2>/dev/null || true
+		fi
+	done
+}
+
+mac_generic_grok_status() {
+	for p in $(_policies); do
+		if kldstat -q -m "mac_$p" 2>/dev/null; then
+			echo "mac_$p: loaded"
+		else
+			echo "mac_$p: not loaded"
+		fi
+	done
+	[ -f "${PRE}/COMPLETE" ] && echo "PREINSTALL: $PRE"
+	return 0
+}
+
+mac_generic_grok_uninstall() {
+	mac_generic_grok_stop
+	if [ -f "${PRE}/COMPLETE" ]; then
+		_restore_file /boot/loader.conf
+		_restore_file /etc/sysctl.conf
+		_restore_file /etc/rc.conf
+		_restore_file /etc/rc.conf.local
+		_restore_file /etc/rc.bsdextended
+	else
+		if [ "$_test" = 1 ]; then
+			_would "strip marked blocks from loader.conf rc.conf"
+		else
+			_strip_marks /boot/loader.conf
+			_strip_marks /etc/rc.conf
+		fi
+	fi
+	if [ "$_test" = 1 ]; then
+		_would "rm /usr/local/etc/rc.d/mac_generic_grok and ${mac_generic_grok_dir} and man pages"
+		_would "keep PREINSTALL $PRE"
+		return 0
+	fi
+	rm -f /usr/local/etc/rc.d/mac_generic_grok
+	rm -rf "${mac_generic_grok_dir}"
+	rm -f /usr/local/share/man/man4/mac_generic_grok.4 \
+		/usr/local/share/man/man5/mac_generic_grok.5 \
+		/usr/local/share/man/man8/mac_generic_grok.8
+	_info "PREINSTALL kept at $PRE"
+}
+
+mac_generic_grok_teststage() { _test=1; echo "=== test stage (no changes) ==="; mac_generic_grok_stage; }
+mac_generic_grok_testupdate() { _test=1; echo "=== test update (no changes) ==="; mac_generic_grok_update; }
+mac_generic_grok_teststart() { _test=1; echo "=== test start (no changes) ==="; mac_generic_grok_start; }
+mac_generic_grok_testuninstall() { _test=1; echo "=== test uninstall (no changes) ==="; mac_generic_grok_uninstall; }
+
+run_rc_command "$1"

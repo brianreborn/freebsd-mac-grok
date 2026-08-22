@@ -1,0 +1,239 @@
+#!/bin/sh
+#
+# PROVIDE: mac_grok
+# REQUIRE: FILESYSTEMS
+# KEYWORD: shutdown
+#
+# Umbrella for mac_lomac_grok + mac_generic_grok.
+# ZFS snapshots/checkpoints happen HERE only: before stage and after stage.
+# Recursive zfs snapshot -r covers filesystems and zvols. No bectl(8).
+# Children must skip their own ZFS snaps (MAC_LOMAC_GROK_SKIP_SNAPSHOT=1).
+#
+# Extra (service(8) one* if enable=NO):
+#   install snapshot snapshot_after stage update uninstall start stop status
+
+# shellcheck disable=SC1091
+. /etc/rc.subr
+
+name="mac_grok"
+rcvar="${name}_enable"
+desc="FreeBSD MAC policy suite (lomac + orthogonal); ZFS before/after"
+
+extra_commands="install snapshot snapshot_after stage update uninstall testsnapshot testsnapshot_after teststage testupdate teststart testuninstall"
+
+load_rc_config $name
+
+: "${mac_grok_enable:=NO}"
+: "${mac_grok_dir:=/usr/local/etc/mac_grok}"
+: "${mac_grok_db:=/var/db/mac_grok}"
+: "${mac_grok_checkpoint:=NO}"
+: "${mac_grok_src:=}"
+: "${mac_grok_with_lomac:=YES}"
+: "${mac_grok_with_generic:=YES}"
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+install_cmd="${name}_install"
+snapshot_cmd="${name}_snapshot"
+snapshot_after_cmd="${name}_snapshot_after"
+stage_cmd="${name}_stage"
+update_cmd="${name}_update"
+uninstall_cmd="${name}_uninstall"
+testsnapshot_cmd="${name}_testsnapshot"
+testsnapshot_after_cmd="${name}_testsnapshot_after"
+teststage_cmd="${name}_teststage"
+testupdate_cmd="${name}_testupdate"
+teststart_cmd="${name}_teststart"
+testuninstall_cmd="${name}_testuninstall"
+
+_test=0
+
+_err() { echo "${name}: $*" >&2; }
+_info() { echo "${name}: $*"; }
+
+_root_dataset() { mount -p | awk '$2=="/" {print $1; exit}'; }
+_root_pool() { ds=$(_root_dataset); echo "${ds%%/*}"; }
+
+_zfs_snap() {
+	# $1 = pre|post
+	when=$1
+	if ! command -v zfs >/dev/null 2>&1; then
+		_err "zfs(8) not found"
+		return 1
+	fi
+	pool=$(_root_pool)
+	[ -n "$pool" ] || { _err "no root pool"; return 1; }
+	stamp=$(date -u +%Y%m%dT%H%M%SZ)
+	tag="mac_grok-${when}-${stamp}"
+	mkdir -p "${mac_grok_db}"
+	log="${mac_grok_db}/zfs.snaps"
+	if [ "$_test" = 1 ]; then
+		echo "WOULD: zfs snapshot -r ${pool}@${tag}"
+		echo "--- filesystems and zvols ---"
+		zfs list -H -o name -t filesystem,volume -r "$pool" 2>/dev/null || true
+		if [ "$when" = "pre" ] && { [ "${mac_grok_checkpoint}" = "YES" ] || [ "${CHECKPOINT:-0}" = 1 ]; }; then
+			echo "WOULD: zpool checkpoint $pool"
+		fi
+		return 0
+	fi
+	_info "zfs snapshot -r ${pool}@${tag}  (filesystems + zvols)"
+	zfs snapshot -r "${pool}@${tag}" || return 1
+	echo "zfs:${pool}@${tag}" >> "$log"
+	do_ckpt=0
+	[ "${mac_grok_checkpoint}" = "YES" ] && do_ckpt=1
+	[ "${CHECKPOINT:-0}" = 1 ] && do_ckpt=1
+	if [ "$do_ckpt" = 1 ] && [ "$when" = "pre" ]; then
+		ckpt=$(zpool get -H -o value checkpoint "$pool" 2>/dev/null || echo none)
+		if [ "$ckpt" != "none" ] && [ -n "$ckpt" ] && [ "$ckpt" != "-" ]; then
+			_err "pool $pool already checkpointed ($ckpt)"
+		else
+			_info "zpool checkpoint $pool"
+			zpool checkpoint "$pool"
+			echo "checkpoint:${pool}" >> "$log"
+		fi
+	fi
+	_info "recorded $tag in $log"
+}
+
+mac_grok_snapshot() { _zfs_snap pre; }
+mac_grok_snapshot_after() { _zfs_snap post; }
+
+_child() {
+	# $1 = mac_lomac_grok|mac_generic_grok  $2 = extra command
+	svc=$1
+	cmd=$2
+	if [ -x /usr/local/etc/rc.d/"$svc" ]; then
+		MAC_LOMAC_GROK_SKIP_SNAPSHOT=1 /usr/local/etc/rc.d/"$svc" "one${cmd}"
+	else
+		_err "$svc not installed"
+		return 1
+	fi
+}
+
+mac_grok_install() {
+	src=${mac_grok_src:-}
+	if [ -z "$src" ]; then
+		src=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+		case $src in
+		/usr/local/etc/rc.d)
+			_err "run from the result directory"
+			return 1
+			;;
+		esac
+	fi
+	mkdir -p "${mac_grok_dir}" /usr/local/etc/rc.d "${mac_grok_db}"
+	install -m 0755 "$0" /usr/local/etc/rc.d/mac_grok
+	[ -f "${src}/README" ] && install -m 0644 "${src}/README" "${mac_grok_dir}/README"
+	[ -f "${src}/SUITE" ] && install -m 0644 "${src}/SUITE" "${mac_grok_dir}/SUITE"
+	_install_mans "$src"
+	# Children: install from sibling dirs if present
+	if [ -x "${src}/../freebsd-mac-lomac/mac_lomac_grok" ] || [ -x "${src}/mac_lomac_grok" ]; then
+		c=${src}/mac_lomac_grok
+		[ -x "$c" ] || c=${src}/../freebsd-mac-lomac/mac_lomac_grok
+		mac_lomac_grok_src=$(CDPATH= cd -- "$(dirname "$c")" && pwd)
+		export mac_lomac_grok_src
+		"$c" oneinstall || true
+	fi
+	if [ -x "${src}/mac_generic_grok" ]; then
+		mac_generic_grok_src=$src
+		export mac_generic_grok_src
+		"${src}/mac_generic_grok" oneinstall || true
+	fi
+	_info "installed umbrella; man: mac_grok(4,7,8); offer onesnapshot then onestage"
+}
+
+_install_mans() {
+	s=$1
+	mandir=""
+	[ -d "$s/man" ] && mandir=$s/man
+	[ -z "$mandir" ] && [ -d "$s/../man" ] && mandir=$s/../man
+	[ -n "$mandir" ] || return 0
+	for sec in 4 5 7 8; do
+		[ -d "$mandir/man$sec" ] || continue
+		mkdir -p "/usr/local/share/man/man$sec"
+		for f in "$mandir/man$sec"/*; do
+			[ -f "$f" ] || continue
+			install -m 0444 "$f" "/usr/local/share/man/man$sec/"
+		done
+	done
+	command -v makewhatis >/dev/null 2>&1 && makewhatis /usr/local/share/man >/dev/null 2>&1 || true
+}
+
+mac_grok_stage() {
+	if [ ! -s "${mac_grok_db}/zfs.snaps" ] && [ "${MAC_GROK_SKIP_SNAPSHOT:-0}" != 1 ]; then
+		_info "no pre snapshot. extra-safe: service ${name} onesnapshot"
+	fi
+	export MAC_LOMAC_GROK_SKIP_SNAPSHOT=1
+	if [ "${mac_grok_with_lomac}" = "YES" ]; then
+		_child mac_lomac_grok stage || return 1
+	fi
+	if [ "${mac_grok_with_generic}" = "YES" ]; then
+		_child mac_generic_grok stage || return 1
+	fi
+	_info "children staged. take post snapshot: service ${name} onesnapshot_after"
+}
+
+mac_grok_update() {
+	export MAC_LOMAC_GROK_SKIP_SNAPSHOT=1
+	[ "${mac_grok_with_lomac}" = "YES" ] && _child mac_lomac_grok update
+	[ "${mac_grok_with_generic}" = "YES" ] && _child mac_generic_grok update
+}
+
+mac_grok_start() {
+	[ "${mac_grok_with_lomac}" = "YES" ] && _child mac_lomac_grok start
+	[ "${mac_grok_with_generic}" = "YES" ] && _child mac_generic_grok start
+}
+
+mac_grok_stop() {
+	[ "${mac_grok_with_generic}" = "YES" ] && _child mac_generic_grok stop
+	[ "${mac_grok_with_lomac}" = "YES" ] && _child mac_lomac_grok stop
+}
+
+mac_grok_status() {
+	[ -s "${mac_grok_db}/zfs.snaps" ] && { echo "ZFS:"; cat "${mac_grok_db}/zfs.snaps"; }
+	[ "${mac_grok_with_lomac}" = "YES" ] && _child mac_lomac_grok status
+	[ "${mac_grok_with_generic}" = "YES" ] && _child mac_generic_grok status
+	return 0
+}
+
+mac_grok_uninstall() {
+	# Children first (each restores its PREINSTALL), then drop umbrella files.
+	[ "${mac_grok_with_generic}" = "YES" ] && _child mac_generic_grok uninstall
+	[ "${mac_grok_with_lomac}" = "YES" ] && _child mac_lomac_grok uninstall
+	rm -f /usr/local/etc/rc.d/mac_grok
+	rm -rf "${mac_grok_dir}"
+	rm -f /usr/local/share/man/man4/mac_grok.4 \
+		/usr/local/share/man/man7/mac_grok.7 \
+		/usr/local/share/man/man7/pqac.7 \
+		/usr/local/share/man/man8/mac_grok.8
+	_info "ZFS snaps/checkpoint NOT destroyed — see ${mac_grok_db}/zfs.snaps"
+	_info "rollback: zfs rollback -r <pool>@mac_grok-pre-…  (or zpool-checkpoint(8) rewind)"
+}
+
+mac_grok_testsnapshot() { _test=1; echo "=== test snapshot (no changes) ==="; mac_grok_snapshot; }
+mac_grok_testsnapshot_after() { _test=1; echo "=== test snapshot_after (no changes) ==="; mac_grok_snapshot_after; }
+mac_grok_teststage() {
+	echo "=== test stage (no changes; children teststage) ==="
+	[ "${mac_grok_with_lomac}" = "YES" ] && _child mac_lomac_grok teststage
+	[ "${mac_grok_with_generic}" = "YES" ] && _child mac_generic_grok teststage
+}
+mac_grok_testupdate() {
+	echo "=== test update (no changes) ==="
+	[ "${mac_grok_with_lomac}" = "YES" ] && _child mac_lomac_grok testupdate
+	[ "${mac_grok_with_generic}" = "YES" ] && _child mac_generic_grok testupdate
+}
+mac_grok_teststart() {
+	echo "=== test start (no changes) ==="
+	[ "${mac_grok_with_lomac}" = "YES" ] && _child mac_lomac_grok teststart
+	[ "${mac_grok_with_generic}" = "YES" ] && _child mac_generic_grok teststart
+}
+mac_grok_testuninstall() {
+	echo "=== test uninstall (no changes) ==="
+	[ "${mac_grok_with_generic}" = "YES" ] && _child mac_generic_grok testuninstall
+	[ "${mac_grok_with_lomac}" = "YES" ] && _child mac_lomac_grok testuninstall
+	echo "WOULD: rm /usr/local/etc/rc.d/mac_grok and ${mac_grok_dir} and man pages"
+	echo "WOULD: keep ${mac_grok_db}/zfs.snaps"
+}
+
+run_rc_command "$1"
