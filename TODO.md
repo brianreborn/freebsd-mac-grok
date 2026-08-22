@@ -24,9 +24,10 @@ Agreed ruach policy (reconfirm at interview): root `equal(equal-equal)`; `lomac-
 
 ## Later (artifact)
 
+- [x] BSD-2-Clause `LICENSE` (catalog requirement)
 - [ ] PGP signature pass (tags / release artifacts). Not now. README already says unsigned.
-- [ ] Optional: `max-headroom` is **not** in this plugin
-- [ ] Optional: xAI marketplace PR (not requested)
+- [x] `max-headroom` is its own plugin: https://github.com/brianreborn/max-headroom-grok
+- [ ] Optional: xAI marketplace PR (fork index, pin 40-char SHA, not `main`)
 
 ## Hygiene
 
