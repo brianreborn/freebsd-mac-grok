@@ -8,5 +8,6 @@
   },
   "homepage": "https://github.com/brianreborn/freebsd-mac-grok",
   "repository": "https://github.com/brianreborn/freebsd-mac-grok",
+  "license": "BSD-2-Clause",
   "keywords": ["freebsd-mac", "mac-lomac", "trustedbsd", "setfsmac", "seeotheruids"]
 }
