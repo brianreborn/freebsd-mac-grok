@@ -2,7 +2,7 @@
 
 Grok **plugin** of three skills plus ports-style **rc.subr(8)** packages for FreeBSD **mac(4)**.
 
-License: **BSD-2-Clause** (`LICENSE`). Not PGP-signed yet. Pin a commit if you need a frozen tree; a signature pass comes later.
+License: **Light-ware** (`LICENSE` — BSD-4-Clause plus a non-binding ask to help keep the lights on). Not PGP-signed yet. Pin a commit if you need a frozen tree; a signature pass comes later.
 
 Installing the Grok plugin only loads skills (prompts + copies of rc.d scripts). Those scripts change a FreeBSD host only when you (or the agent, with your sudo) run `oneinstall` / `onestage` / `oneenforce`. No install-time hooks, MCP servers, or `curl | bash`. Network: none at plugin install; later, only what you already use (`pkg`, GitHub if you clone).
 
