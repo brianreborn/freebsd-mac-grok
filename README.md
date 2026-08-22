@@ -1,8 +1,12 @@
 # freebsd-mac-grok
 
+**Public repository.** **Copyright © 2026 Brian Fundakowski Feldman.**  
+**License: [Light-ware](LICENSE)** (4-clause BSD + a non-binding ask to help keep the lights on).  
+See **[NOTICE.md](NOTICE.md)** — every file in this tree is under that license.
+
 Grok **plugin** of three skills plus ports-style **rc.subr(8)** packages for FreeBSD **mac(4)**.
 
-License: **Light-ware** (`LICENSE` — BSD-4-Clause plus a non-binding ask to help keep the lights on). Not PGP-signed yet. Pin a commit if you need a frozen tree; a signature pass comes later.
+Not PGP-signed yet. Pin a commit if you need a frozen tree; a signature pass comes later.
 
 Installing the Grok plugin only loads skills (prompts + copies of rc.d scripts). Those scripts change a FreeBSD host only when you (or the agent, with your sudo) run `oneinstall` / `onestage` / `oneenforce`. No install-time hooks, MCP servers, or `curl | bash`. Network: none at plugin install; later, only what you already use (`pkg`, GitHub if you clone).
 

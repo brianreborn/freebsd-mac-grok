@@ -8,6 +8,6 @@
   },
   "homepage": "https://github.com/brianreborn/freebsd-mac-grok",
   "repository": "https://github.com/brianreborn/freebsd-mac-grok",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "Light-ware License (BSD-4-Clause plus non-binding lights-on invitation). Copyright (c) 2026 Brian Fundakowski Feldman. See LICENSE and NOTICE.md.",
   "keywords": ["freebsd-mac", "mac-lomac", "trustedbsd", "setfsmac", "seeotheruids"]
 }

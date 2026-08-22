@@ -1,3 +1,4 @@
+# Light-ware License. Copyright (c) 2026 Brian Fundakowski Feldman. See LICENSE in the distribution.
 #
 # X11 socket/log exemptions: original LOMAC PLM (XFree86 /tmp/.X11-unix
 # and /usr/tmp/.X11-unix) plus paths Xorg(1), XLibre, and rc.d/cleartmp(8)

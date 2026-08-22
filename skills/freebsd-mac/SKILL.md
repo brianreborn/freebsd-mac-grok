@@ -37,3 +37,7 @@ Result `~/freebsd-mac/`:
 6. Recover: `oneuninstall` (children restore configs) then optional `zfs rollback -r pool@mac_grok-pre-…`.
 
 Never snapshot inside LOMAC/generic when this skill is the caller (`MAC_LOMAC_GROK_SKIP_SNAPSHOT=1`, `MAC_GROK_SKIP_SNAPSHOT` only if they refuse all ZFS).
+
+---
+Copyright © 2026 Brian Fundakowski Feldman. Light-ware License — see the repository root [LICENSE](https://github.com/brianreborn/freebsd-mac-grok/blob/main/LICENSE) and [NOTICE.md](https://github.com/brianreborn/freebsd-mac-grok/blob/main/NOTICE.md).
+

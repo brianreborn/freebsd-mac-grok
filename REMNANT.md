@@ -180,3 +180,7 @@ A VM snapshot was taken to freeze this memory. **On resume: walk the operator th
 Default path: fix the FreeBSD `ort` / maturin wheel failure, get a `headroom` binary matching checkout **v0.36.4**, write `max-headroom.script`, then proxy/MCP/wrap. Do not skip to `oneenforce`. If they cite documentation (Headroom, `ort`, FreeBSD, this remnant), stop and deal with that before continuing the walk-through.
 
 Thank-you noted. Soft work counts.
+
+---
+Copyright © 2026 Brian Fundakowski Feldman. Light-ware License — see the repository root [LICENSE](https://github.com/brianreborn/freebsd-mac-grok/blob/main/LICENSE) and [NOTICE.md](https://github.com/brianreborn/freebsd-mac-grok/blob/main/NOTICE.md).
+

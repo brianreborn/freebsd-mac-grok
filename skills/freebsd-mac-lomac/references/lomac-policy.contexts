@@ -1,3 +1,4 @@
+# Light-ware License. Copyright (c) 2026 Brian Fundakowski Feldman. See LICENSE in the distribution.
 #
 # Official FreeBSD sample (share/security/lomac-policy.contexts).
 # PLM from the original FreeBSD LOMAC port. Apply with setfsmac(8):

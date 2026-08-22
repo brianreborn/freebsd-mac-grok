@@ -1,4 +1,5 @@
 #!/bin/sh
+# Light-ware License. Copyright (c) 2026 Brian Fundakowski Feldman. See LICENSE in the distribution.
 #
 # PROVIDE: mac_generic_grok
 # REQUIRE: FILESYSTEMS

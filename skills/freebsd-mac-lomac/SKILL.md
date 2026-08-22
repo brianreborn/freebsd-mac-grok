@@ -84,3 +84,7 @@ Privilege: one sudo. Never ask “continue?”
 ## After
 
 Point at `$RESULT`, install/stage/`oneupdate` for later **login.conf(5)**/group changes, and `oneuninstall` as the no-snapshot recovery. Leave `$RESULT/README` § Known issues intact so the installed package documents Handbook and mailing-list issues.
+
+---
+Copyright © 2026 Brian Fundakowski Feldman. Light-ware License — see the repository root [LICENSE](https://github.com/brianreborn/freebsd-mac-grok/blob/main/LICENSE) and [NOTICE.md](https://github.com/brianreborn/freebsd-mac-grok/blob/main/NOTICE.md).
+

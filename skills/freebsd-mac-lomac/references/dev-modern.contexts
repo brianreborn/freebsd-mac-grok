@@ -1,3 +1,4 @@
+# Light-ware License. Copyright (c) 2026 Brian Fundakowski Feldman. See LICENSE in the distribution.
 #
 # Privileged /dev nodes: original LOMAC PLM used mdctl, pci, kmem, mem, io,
 # agp.* (LOWNOOPEN / high). Names have moved. This file is applied first so

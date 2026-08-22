@@ -259,3 +259,7 @@ These are not Handbook gospel. They still bite.
 ## See also
 
 **mac(4)**, **mac_lomac(4)**, **mac_biba(4)**, **mac_mls(4)**, **mac_seeotheruids(4)**, **maclabel(7)**, **mac.conf(5)**, **login.conf(5)**, **loader.conf(5)**, **setfsmac(8)**, **setfmac(8)**, **setpmac(8)**, **getfmac(8)**, **getpmac(8)**, **tunefs(8)**, **sysctl(8)**, **kldload(8)**, **ifconfig(8)**, **zpool-checkpoint(8)**, FreeBSD Handbook [ch.19 Mandatory Access Control](https://docs.freebsd.org/en/books/handbook/mac/) (especially [§19.8 Troubleshooting](https://docs.freebsd.org/en/books/handbook/mac/#mac-troubleshoot)), **freebsd-mac-generic** / **freebsd-mac** READMEs (sibling Known issues).
+
+---
+Copyright © 2026 Brian Fundakowski Feldman. Light-ware License — see the repository root [LICENSE](https://github.com/brianreborn/freebsd-mac-grok/blob/main/LICENSE) and [NOTICE.md](https://github.com/brianreborn/freebsd-mac-grok/blob/main/NOTICE.md).
+

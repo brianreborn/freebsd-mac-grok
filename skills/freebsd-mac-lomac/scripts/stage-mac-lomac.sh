@@ -1,4 +1,5 @@
 #!/bin/sh
+# Light-ware License. Copyright (c) 2026 Brian Fundakowski Feldman. See LICENSE in the distribution.
 # Compatibility wrapper. Prefer service(8) / the rc.d script.
 #   sudo ./mac_lomac_grok oneinstall
 #   sudo service mac_lomac_grok onestage

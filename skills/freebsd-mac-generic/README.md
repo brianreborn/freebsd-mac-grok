@@ -70,3 +70,7 @@ Handbook [§19.5](https://docs.freebsd.org/en/books/handbook/mac/#mac-policies),
 ## See also
 
 **mac(4)**, **mac_seeotheruids(4)**, **mac_ifoff(4)**, **mac_portacl(4)**, **mac_bsdextended(4)**, **ugidfw(8)**, **mac_partition(4)**, **loader.conf(5)**, **sysctl(8)**, **kldload(8)**, FreeBSD Handbook [ch.19](https://docs.freebsd.org/en/books/handbook/mac/) ([§19.8](https://docs.freebsd.org/en/books/handbook/mac/#mac-troubleshoot)), **freebsd-mac-lomac** (LOMAC Known issues), **freebsd-mac**.
+
+---
+Copyright © 2026 Brian Fundakowski Feldman. Light-ware License — see the repository root [LICENSE](https://github.com/brianreborn/freebsd-mac-grok/blob/main/LICENSE) and [NOTICE.md](https://github.com/brianreborn/freebsd-mac-grok/blob/main/NOTICE.md).
+

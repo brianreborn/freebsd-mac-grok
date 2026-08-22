@@ -48,3 +48,7 @@ MAC deploy is parked on this list.
 **Next session:** walk **Headroom install** (see `REMNANT.md`) unless the operator says the docs require addressing something first.
 
 Popped: **Headroom** (`/max-headroom`) — checkout `~/projects/headroom` @ v0.36.4; `~/max-headroom.sh` pkgs in; `pip` wheel failed (`ort` on FreeBSD); no `headroom` CLI; no `max-headroom.script`.
+
+---
+Copyright © 2026 Brian Fundakowski Feldman. Light-ware License — see the repository root [LICENSE](https://github.com/brianreborn/freebsd-mac-grok/blob/main/LICENSE) and [NOTICE.md](https://github.com/brianreborn/freebsd-mac-grok/blob/main/NOTICE.md).
+

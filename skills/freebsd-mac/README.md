@@ -76,3 +76,7 @@ Walk the child Known issues **and** LOMAC Gotchas before `service mac_lomac_grok
 ## See also
 
 **mac(4)**, **mac_lomac(4)**, **mac_seeotheruids(4)**, **zfs(8)**, **zpool-checkpoint(8)**, **rc.subr(8)**, **pqac(7)** (exoteric/esoteric note on quantum-adversary-stable mediation; render with `mandoc -T pdf`), FreeBSD Handbook [ch.19](https://docs.freebsd.org/en/books/handbook/mac/) ([§19.8](https://docs.freebsd.org/en/books/handbook/mac/#mac-troubleshoot)), **freebsd-mac-lomac**, **freebsd-mac-generic**.
+
+---
+Copyright © 2026 Brian Fundakowski Feldman. Light-ware License — see the repository root [LICENSE](https://github.com/brianreborn/freebsd-mac-grok/blob/main/LICENSE) and [NOTICE.md](https://github.com/brianreborn/freebsd-mac-grok/blob/main/NOTICE.md).
+

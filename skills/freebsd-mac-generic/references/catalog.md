@@ -18,3 +18,7 @@ Do **not** load **mac_biba(4)** or **mac_mls(4)** alongside **mac_lomac(4)** unl
 Default recommendation with LOMAC: **mac_seeotheruids(4)** only, `specificgid` = `wheel` (0) so operators still see the box.
 
 Known issues (Handbook troubleshooting, seeotheruids vs root PRs, ifoff lockout, ugidfw new-user reload, partition unload): skill `README.md` § Known issues. Do not omit that section from the result README.
+
+---
+Copyright © 2026 Brian Fundakowski Feldman. Light-ware License — see the repository root [LICENSE](https://github.com/brianreborn/freebsd-mac-grok/blob/main/LICENSE) and [NOTICE.md](https://github.com/brianreborn/freebsd-mac-grok/blob/main/NOTICE.md).
+

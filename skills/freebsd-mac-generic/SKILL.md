@@ -40,3 +40,7 @@ Then `sudo $RESULT/mac_generic_grok oneinstall` && `onestage`. No kldload until 
 `oneinstall` → `onestage` (PREINSTALL then marked **loader.conf(5)** blocks) → `oneupdate` later → `onestart` loads klds → `oneuninstall` restores PREINSTALL.
 
 If invoked from **freebsd-mac**, do not mention ZFS; parent already snapped.
+
+---
+Copyright © 2026 Brian Fundakowski Feldman. Light-ware License — see the repository root [LICENSE](https://github.com/brianreborn/freebsd-mac-grok/blob/main/LICENSE) and [NOTICE.md](https://github.com/brianreborn/freebsd-mac-grok/blob/main/NOTICE.md).
+

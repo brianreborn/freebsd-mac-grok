@@ -1,3 +1,4 @@
+# Light-ware License. Copyright (c) 2026 Brian Fundakowski Feldman. See LICENSE.
 # Render pqac(7) to PDF. mandoc(1) from the FreeBSD base set.
 #   make -C references -f Makefile
 # or from the skill root:
