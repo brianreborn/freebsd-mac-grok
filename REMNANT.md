@@ -172,3 +172,11 @@ Generic default with LOMAC: **mac_seeotheruids(4)** only, exempt GID 0 (`wheel`)
 4. MAC suite remains parked on the checklist unless you unpark it.
 
 Do not `oneenforce`. Do not PGP-sign until you ask. Do not PR the xAI marketplace until a SHA is frozen (after PGP if you want that first).
+
+## Next session (operator request, 2026-08-22)
+
+A VM snapshot was taken to freeze this memory. **On resume: walk the operator through Headroom install** (this file, § Install remnant — Headroom), step by step, unless they say the docs showed something that must be addressed first.
+
+Default path: fix the FreeBSD `ort` / maturin wheel failure, get a `headroom` binary matching checkout **v0.36.4**, write `max-headroom.script`, then proxy/MCP/wrap. Do not skip to `oneenforce`. If they cite documentation (Headroom, `ort`, FreeBSD, this remnant), stop and deal with that before continuing the walk-through.
+
+Thank-you noted. Soft work counts.
