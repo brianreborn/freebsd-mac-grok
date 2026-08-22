@@ -1,0 +1,12 @@
+{
+  "name": "freebsd-mac-grok",
+  "version": "0.1.0",
+  "description": "FreeBSD MAC policy skills: mac_lomac(4) integrity, orthogonal modules (seeotheruids, …), and a ZFS-snapshotted suite installer. No bectl(8).",
+  "author": {
+    "name": "Brian Reborn",
+    "url": "https://github.com/brianreborn"
+  },
+  "homepage": "https://github.com/brianreborn/freebsd-mac-grok",
+  "repository": "https://github.com/brianreborn/freebsd-mac-grok",
+  "keywords": ["freebsd-mac", "mac-lomac", "trustedbsd", "setfsmac", "seeotheruids"]
+}

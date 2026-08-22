@@ -1,30 +1,45 @@
 # freebsd-mac-grok
 
-Grok skills and ports-style **rc.subr(8)** packages for FreeBSD **mac(4)**.
+Grok **plugin** of three skills plus ports-style **rc.subr(8)** packages for FreeBSD **mac(4)**.
 
-Live copies on a workstation also live under `~/.grok/skills/` with the same directory names. This repository is the durable tree.
+Not PGP-signed yet. Pin a commit if you need a frozen tree; a signature pass comes later.
 
-| Directory | Skill / rc.d | Role |
+## Install (Grok)
+
+```sh
+grok plugin install brianreborn/freebsd-mac-grok --trust
+```
+
+That loads `/freebsd-mac`, `/freebsd-mac-lomac`, and `/freebsd-mac-generic`.
+
+Clone only:
+
+```sh
+git clone https://github.com/brianreborn/freebsd-mac-grok.git
+# skills are under skills/<name>/ — copy or symlink into ~/.grok/skills/ if you are not using the plugin installer
+```
+
+## Skills
+
+| Path | Slash | Role |
 | --- | --- | --- |
-| `freebsd-mac-lomac/` | `mac_lomac_grok` | **mac_lomac(4)** integrity: roles as **pw(8)** groups, official PLM specfile, Xorg/`/dev` overlays, PREINSTALL uninstall |
-| `freebsd-mac-generic/` | `mac_generic_grok` | Orthogonal modules (**mac_seeotheruids(4)**, …). No ZFS. |
-| `freebsd-mac/` | `mac_grok` | Umbrella: **zfs snapshot -r** (filesystems and zvols) and optional **zpool-checkpoint(8)** before *and* after staging. No **bectl(8)**. |
+| `skills/freebsd-mac-lomac/` | `/freebsd-mac-lomac` | **mac_lomac(4)** integrity: roles as **pw(8)** groups, official PLM specfile, Xorg/`/dev` overlays, PREINSTALL uninstall |
+| `skills/freebsd-mac-generic/` | `/freebsd-mac-generic` | Orthogonal modules (**mac_seeotheruids(4)**, …). No ZFS. |
+| `skills/freebsd-mac/` | `/freebsd-mac` | Umbrella: **zfs snapshot -r** (filesystems and zvols) and optional **zpool-checkpoint(8)** before *and* after staging. No **bectl(8)**. |
 
 Each skill ships a README with **Known issues** (Handbook ch.19 and mailing lists/PRs) and section 4/5/7/8 manuals.
 
 ## pqac(7)
 
-Short mdoc paper on quantum-adversary-stable mediation (exoteric and esoteric):
-
 ```sh
-mandoc -T pdf freebsd-mac/man/man7/pqac.7 > freebsd-mac/references/pqac.pdf
+mandoc -T pdf skills/freebsd-mac/man/man7/pqac.7 > skills/freebsd-mac/references/pqac.pdf
 # or:
-make -C freebsd-mac/references
+make -C skills/freebsd-mac/references
 ```
 
-A rendered PDF is kept at `freebsd-mac/references/pqac.pdf`.
+Rendered PDF: `skills/freebsd-mac/references/pqac.pdf`.
 
-## Install (on FreeBSD)
+## Host install (FreeBSD)
 
 The skills interview, then emit a result directory. From a result tree:
 
@@ -38,3 +53,11 @@ sudo service mac_grok onesnapshot_after
 ```
 
 Do not `kldload` **mac_lomac(4)** or set `security.mac.lomac.enabled=1` until a test window. `oneuninstall` restores pre-install *behavior* from `PREINSTALL/`.
+
+## Signatures
+
+Unsigned on purpose. A later pass will PGP-sign tags and/or release artifacts. Until then, treat `main` as moving and pin:
+
+```sh
+git ls-remote https://github.com/brianreborn/freebsd-mac-grok.git HEAD
+```

@@ -14,7 +14,7 @@ description: >
 
 Read `README.md`. This is the **suite**. Snapshot/checkpoint live **only** here (before and after). Do not let children `onesnapshot`.
 
-`${SKILL_DIR}` = `~/.grok/skills/freebsd-mac`.
+`${SKILL_DIR}` = this skill directory (plugin `skills/freebsd-mac` or `~/.grok/skills/freebsd-mac`).
 Also load **freebsd-mac-lomac** and **freebsd-mac-generic** skills when those pieces run.
 
 ## Output

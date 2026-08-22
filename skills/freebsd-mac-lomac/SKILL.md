@@ -15,7 +15,7 @@ description: >
 
 Human usage, defaults, and **mac_lomac(4)**-style references: read `README.md` in this skill directory first. Follow it. File labels still go through **setfsmac(8)**. The *package* the skill emits is an **rc.subr(8)** script (`mac_lomac_grok`) with extra commands — including **uninstall** that restores pre-install behavior from a one-time snapshot.
 
-`${SKILL_DIR}` = this skill (`~/.grok/skills/freebsd-mac-lomac`).
+`${SKILL_DIR}` = this skill directory (plugin `skills/freebsd-mac-lomac` or `~/.grok/skills/freebsd-mac-lomac`).
 
 ## Output: one result directory
 

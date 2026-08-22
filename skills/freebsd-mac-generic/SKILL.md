@@ -13,7 +13,7 @@ description: >
 
 Read `README.md` and `references/catalog.md` first. This skill is **not** **mac_lomac(4)** (use **freebsd-mac-lomac**). It does **not** snapshot ZFS (use **freebsd-mac**).
 
-`${SKILL_DIR}` = `~/.grok/skills/freebsd-mac-generic`.
+`${SKILL_DIR}` = this skill directory (plugin `skills/freebsd-mac-generic` or `~/.grok/skills/freebsd-mac-generic`).
 
 ## Output
 
