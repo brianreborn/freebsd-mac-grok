@@ -79,6 +79,15 @@ A quantitative bound on leakage is
 .Em resistance .
 These are not interchangeable.
 Quantum advantage on the plant is not a corollary of Shor.
+Packaging
+.Em A_M
+on GENERIC
+.Pq rc.d, Xr setfsmac 8 , ZFS, login classes, a 2001 PLM
+supplied operational lemmas the slogans omit: empty lattices,
+first-match combinators, obsolete
+.Em Obj
+alphabets, the login cut, RDTUN ifnets, and recovery as part of
+the monitor.
 .Sh MACHINE AND ADVERSARY
 .Ss Defender
 A von Neumann host: shared store, sequential fetch, binary encoding.
@@ -474,6 +483,236 @@ T1 and T2 are implemented by this suite's rc.d packages.
 T3 is assumed so that T4 is utterable.
 T4 is two theorems until a coupling map is exhibited.
 T5 keeps T3 from swallowing T1 and T2.
+The following lemmas are residue from building those packages and
+from Handbook and mailing-list failures that the slogans do not
+mention.
+.Sh PRAXIS
+.Ss Empty interpretation
+Enabling
+.Em A_M
+before
+.Xr setfsmac 8
+is a different relation: unlabeled objects versus labeled processes,
+.Er EPERM
+noise.
+.Va security.mac.lomac.enabled Ns =0
+until a
+.Xr setfmac 8
+probe and then
+.Xr setfsmac 8
+is the statement that the lattice must be total on the mounted
+.Em Obj
+before the monitor interprets it.
+.Xr getfmac 8
+.Er EINVAL
+until
+.Nm mac_lomac
+is loaded is a domain error, not a ZFS failure.
+.Ss Combinators are not joins
+.Xr setfsmac 8
+first-match is not least upper bound in
+.Em L .
+The official PLM lists
+.Li /dev
+catchall
+.Ql equal
+before
+.Pa /dev/mdctl
+.Ql high ;
+the latter never applies.
+Overlays
+.Pq dev-modern, x11-xorg, site
+precede the PLM because the combinator is regex order.
+A proof of
+.Em A_M
+that quotes the PLM without quoting the combinator is a proof of a
+different policy.
+.Ss The object alphabet moves
+The 2001 PLM names
+.Xr agp 4 ,
+syscons,
+.Pa /tmp/.X11-unix .
+GENERIC now names
+.Xr vt 4 ,
+.Xr evdev 4
+.Pa event* ,
+DRM
+.Pa card*
+.Pq master, treat as old agp, high
+and
+.Pa renderD*
+.Pq unprivileged, equal ,
+.Xr hid 4
+.Pa hidraw .
+A policy written against obsolete names is an unlabeled hole.
+Handbook Xorg failure is often that hole, or
+.Xr mac_partition 4 ,
+not a mystery in the lattice.
+.Ss Subjects are created at login
+.Em lambda(s)
+is a
+.Xr login.conf 5
+field, compiled by
+.Xr cap_mkdb 1 ,
+attached by
+.Xr login 1 .
+The shell used to edit the file is not in
+.Em Sub
+under the new class.
+.Xr login.conf 5
+has no group-to-label map; roles are
+.Xr pw 8
+groups bound to classes.
+Expecting the editing session to be labeled is a type error.
+.Ss Network objects are in the lattice
+Untrusted ifnets default
+.Ql low .
+.Va security.mac.lomac.trust_all_interfaces
+is RDTUN
+.Pq Xr loader.conf 5 ,
+not a live
+.Xr sysctl 8 .
+Remote-only enforce demotes or kills the authentication path.
+.Va ptys_equal
+covers the tty objects
+.Xr login 1
+needs.
+Handbook: implement MAC over a remote connection with extreme
+caution.
+This is T1 applied to the administrator's own subject.
+.Ss The store is not UFS-shaped
+ZFS has no
+.Xr tunefs 8
+.Cm multilabel .
+Labels live in the system extattr namespace
+.Pq OpenZFS
+.Dq freebsd:system
+prefix .
+User-namespace
+.Ql xattr=sa
+versus
+.Ql dir
+is a different API; do not flip it to
+.Dq fix
+LOMAC.
+Probe
+.Xr setfmac 8
+on
+.Pa /tmp ;
+abort with
+.Va enabled Ns =0
+if
+.Er EINVAL
+persists after
+.Xr kldload 8 .
+UFS
+.Ql multilabel
+on
+.Pa /
+is not sticky without the Handbook
+.Pa fstab
+read-only dance.
+.Ss Integrity is experienced as a bug
+.Ql _secure_path: unable to stat .login_conf
+when a high subject uses
+.Xr su 1
+into a low home is LOMAC/Biba as specified.
+.Ql whoami
+prints 0 and
+.Xr su 1
+says
+.Dq who are you?
+when
+.Em A_M
+is unloaded while
+.Xr login.conf 5
+still carries
+.Ql label= ,
+or when
+.Pa master.passwd
+inherited a conflicting label.
+Root
+.Ql equal(equal-equal)
+is exemption, not containment
+.Pq Xr mac 9 .
+Fraser's
+.Ql pump ,
+.Ql syslogd ,
+.Ql sshd
+trusted-binary list is Linux LOMAC; this module uses
+.Ql equal
+on
+.Pa /tmp ,
+.Pa /var/log ,
+.Pa /var/run ,
+.Pa /sbin/dhclient
+.Ql high[low] ,
+and
+.Va ptys_equal .
+Do not copy the USENIX exception list into a specfile.
+Auxiliary grades may not apply to extattr I/O
+.Pq PR 178667 ;
+do not rest a proof on aux covering xattrs.
+.Ss Conjunction is not a product of proofs
+.Xr mac_seeotheruids 4
+is orthogonal
+.Pq no labels
+and a short proof.
+.Xr mac_ifoff 4
+.Va other_enabled Ns =0
+denies the ifnet, hence the authentication path.
+.Xr mac_partition 4
+needs labels and fights Xorg and
+.Ql top .
+Biba stacked on LOMAC is a product of incompatible axioms.
+.Xr ugidfw 8
+empty is allow-all; new users miss rules until module reload.
+.Va specificgid
+is one GID, historically argued both ways about root
+.Pq kern/72263, bin/79714 .
+.Ss Recovery is inside the isolation claim
+A lockout is a failed interpretation, not successful confinement.
+PREINSTALL restores
+.Em behavior :
+unload, copy back
+.Xr login.conf 5
+and
+.Xr loader.conf 5 ,
+.Xr cap_mkdb 1 ,
+restore login classes.
+MAC xattrs remain;
+.Em A_M
+becomes the identity without the kld.
+.Xr zfs 8
+.Cm snapshot Fl r
+.Pq filesystems and zvols
+is the dataset morphism.
+.Xr zpool-checkpoint 8
+rewind discards later transaction groups and the checkpoint itself
+.Pq one checkpoint per pool; OpenZFS 12646 .
+.Cm uninstall
+is not wipe and not rewind.
+.Cm test*
+before each
+.Cm one* .
+.Ss Authentication still sits in front
+None of the above places
+.Em A_auth
+in a BQP-hard problem.
+T2 is mediation after a name.
+The suite does not
+.Xr kldload 8
+Kyber.
+.Ss The cook and O
+If a plant observation needs a modulator, that process is in
+.Em Sub
+and the sandbox, label, and
+.Xr mmap 2
+revocation story applies
+.Pq T4, factoring .
+If the trusted subject is already the hot core, LOMAC will not mute
+emanations of what it was allowed to compute
+.Pq T4, non-factoring; change the lattice or specify analog O .
 .Sh PROOF OBLIGATIONS
 A proof of the esoteric half must:
 .Bl -enum
@@ -510,19 +749,39 @@ Do not derive no-read-down from a low-watermark.
 If the goal is emanation secrecy, say so and change the lattice.
 .El
 .Sh SEE ALSO
+.Xr cap_mkdb 1 ,
 .Xr chmod 1 ,
+.Xr login 1 ,
 .Xr mandoc 1 ,
+.Xr su 1 ,
 .Xr mmap 2 ,
+.Xr agp 4 ,
+.Xr evdev 4 ,
+.Xr hid 4 ,
 .Xr mac 4 ,
+.Xr mac_ifoff 4 ,
 .Xr mac_lomac 4 ,
+.Xr mac_partition 4 ,
 .Xr mac_seeotheruids 4 ,
+.Xr vt 4 ,
+.Xr loader.conf 5 ,
 .Xr login.conf 5 ,
 .Xr mac_grok 7 ,
 .Xr mac_lomac_grok 7 ,
+.Xr getfmac 8 ,
+.Xr kldload 8 ,
 .Xr mac_generic_grok 8 ,
 .Xr mac_grok 8 ,
 .Xr mac_lomac_grok 8 ,
+.Xr pw 8 ,
+.Xr setfmac 8 ,
+.Xr setfsmac 8 ,
 .Xr sshd 8 ,
+.Xr sysctl 8 ,
+.Xr tunefs 8 ,
+.Xr ugidfw 8 ,
+.Xr zfs 8 ,
+.Xr zpool-checkpoint 8 ,
 .Xr mac 9
 .Pp
 Anderson, J. P.,
@@ -560,7 +819,10 @@ on a classical
 .Xr mac_lomac 4
 host: not a cryptographic suite, not a quantum OS, a BQP adversary,
 then the plant, then the observation function.
-Rewritten for a technical audience the same day.
+Rewritten for a technical audience, then extended with praxis from
+packaging
+.Em A_M
+on GENERIC the same day.
 .Sh AUTHORS
 .An Grok
 and the operator of
