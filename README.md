@@ -56,6 +56,8 @@ sudo service mac_grok onesnapshot_after
 
 Do not `kldload` **mac_lomac(4)** or set `security.mac.lomac.enabled=1` until a test window. `oneuninstall` restores pre-install *behavior* from `PREINSTALL/`.
 
+Install remnant (what is still not on the host): **[REMNANT.md](REMNANT.md)**. Short MAC checklist: **[TODO.md](TODO.md)**.
+
 ## Signatures
 
 Unsigned on purpose. A later pass will PGP-sign tags and/or release artifacts. Until then, treat `main` as moving and pin:
